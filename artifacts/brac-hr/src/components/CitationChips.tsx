@@ -1,11 +1,24 @@
 "use client";
 
-import { useState } from "react";
 import type { Citation } from "@/lib/types";
 import { IconLink } from "./icons";
 
-export function CitationChips({ citations }: { citations: Citation[] }) {
-  const [open, setOpen] = useState<number | null>(null);
+/** Route s3:// citations through the signed-link endpoint; use web links directly. */
+export function citationHref(uri: string): string {
+  if (uri.startsWith("s3://")) return `/api/citation-link?uri=${encodeURIComponent(uri)}`;
+  return uri;
+}
+
+export function CitationChips({
+  citations,
+  open,
+  onOpenChange,
+}: {
+  citations: Citation[];
+  /** Index of the expanded chip, or null. Controlled by the parent so inline markers can open chips. */
+  open: number | null;
+  onOpenChange: (open: number | null) => void;
+}) {
   if (!citations.length) return null;
 
   return (
@@ -20,7 +33,8 @@ export function CitationChips({ citations }: { citations: Citation[] }) {
         {citations.map((c, i) => (
           <button
             key={i}
-            onClick={() => setOpen(open === i ? null : i)}
+            id={`cite-chip-${i}`}
+            onClick={() => onOpenChange(open === i ? null : i)}
             className="group inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors hover:border-[var(--color-accent-300)] hover:bg-[var(--color-accent-50)]"
             style={{
               background: open === i ? "var(--color-accent-50)" : "var(--bg)",
@@ -41,7 +55,7 @@ export function CitationChips({ citations }: { citations: Citation[] }) {
         ))}
       </div>
 
-      {open !== null && (
+      {open !== null && citations[open] && (
         <div
           className="mt-2 rounded-xl border p-3.5 text-sm animate-fade-in"
           style={{
@@ -55,7 +69,7 @@ export function CitationChips({ citations }: { citations: Citation[] }) {
             </div>
             {citations[open].uri && (
               <a
-                href={citations[open].uri}
+                href={citationHref(citations[open].uri)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs hover:underline"

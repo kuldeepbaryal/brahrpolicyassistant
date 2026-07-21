@@ -58,10 +58,31 @@ export async function createEngineSession(_userPseudoId: string): Promise<string
   return null; // Bedrock creates the session on the first answerQuery call.
 }
 
-function extractCitations(rawCitations: BedrockCitation[]): Citation[] {
-  const seen = new Set<string>();
-  const out: Citation[] = [];
+const MAX_CITATIONS = 8;
+
+/** Markdown link a chip renderer recognizes as an inline citation marker. */
+export function citationMarker(n: number): string {
+  return `[[${n}]](#cite-${n})`;
+}
+
+/**
+ * Dedupe retrieved references into a citation list AND insert numbered
+ * inline markers into the answer text. Bedrock reports, per citation, the
+ * span of generated text (start/end offsets, end inclusive) that the
+ * references support — markers are inserted right after each span, from the
+ * end of the text backwards so earlier offsets stay valid. References past
+ * the citation cap get no marker.
+ */
+export function extractCitationsWithMarkers(
+  rawText: string,
+  rawCitations: BedrockCitation[]
+): { text: string; citations: Citation[] } {
+  const seen = new Map<string, number>(); // dedupe key → index in `citations`
+  const citations: Citation[] = [];
+  const insertions: { pos: number; refIndexes: number[] }[] = [];
+
   for (const citation of rawCitations) {
+    const refIndexes: number[] = [];
     for (const ref of citation.retrievedReferences ?? []) {
       const title =
         (ref.metadata?.["x-amz-bedrock-kb-source-uri"] as string | undefined)?.split("/").pop() ??
@@ -70,14 +91,29 @@ function extractCitations(rawCitations: BedrockCitation[]): Citation[] {
         (ref.location?.s3Location?.uri as string | undefined) ??
         (ref.location?.webLocation?.url as string | undefined) ??
         "";
-      const snippet = (ref.content?.text ?? "").slice(0, 400);
       const key = `${title}|${uri}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      out.push({ title, uri, snippet });
+      let idx = seen.get(key);
+      if (idx === undefined) {
+        if (citations.length >= MAX_CITATIONS) continue;
+        idx = citations.length;
+        seen.set(key, idx);
+        citations.push({ title, uri, snippet: (ref.content?.text ?? "").slice(0, 400) });
+      }
+      if (!refIndexes.includes(idx)) refIndexes.push(idx);
+    }
+
+    const end = citation.generatedResponsePart?.textResponsePart?.span?.end;
+    if (refIndexes.length && typeof end === "number" && end >= 0) {
+      insertions.push({ pos: Math.min(end + 1, rawText.length), refIndexes });
     }
   }
-  return out.slice(0, 8);
+
+  let text = rawText;
+  for (const ins of insertions.sort((a, b) => b.pos - a.pos)) {
+    const markers = ins.refIndexes.map((i) => citationMarker(i + 1)).join(" ");
+    text = `${text.slice(0, ins.pos)} ${markers}${text.slice(ins.pos)}`;
+  }
+  return { text, citations };
 }
 
 export async function answerQuery(
@@ -149,8 +185,9 @@ async function runQuery(question: string, sessionName: string | null, started: n
   });
 
   const res = await getClient().send(command);
-  const { answerText, relatedQuestions } = splitRelated(res.output?.text ?? "");
-  const citations = extractCitations(res.citations ?? []);
+  const marked = extractCitationsWithMarkers(res.output?.text ?? "", res.citations ?? []);
+  const { answerText, relatedQuestions } = splitRelated(marked.text);
+  const citations = marked.citations;
   const noResults = !answerText.trim();
 
   log.info("answerQuery ok", { latencyMs: Date.now() - started, noResults, citations: citations.length });
@@ -203,8 +240,9 @@ function mockAnswer(question: string, sessionName: string | null): AnswerResult 
   const q = question.toLowerCase();
   const key = ["maternity", "probation", "leave"].find((k) => q.includes(k));
   const answerText =
-    (key && MOCK_ANSWERS[key]) ??
-    `Here is what BRAC's HR policies say:\n\n- This is a **mock answer** (MOCK_MODE is on).\n- In production, answers come from your Bedrock Knowledge Base.\n- Your question was: _"${question}"_`;
+    ((key && MOCK_ANSWERS[key]) ??
+      `Here is what BRAC's HR policies say:\n\n- This is a **mock answer** (MOCK_MODE is on).\n- In production, answers come from your Bedrock Knowledge Base.\n- Your question was: _"${question}"_`) +
+    ` ${citationMarker(1)}`;
   return {
     answerText,
     citations: [

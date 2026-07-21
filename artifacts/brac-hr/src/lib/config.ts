@@ -95,4 +95,16 @@ export const config = {
   get answerCacheTtlSeconds() {
     return Number(process.env.ANSWER_CACHE_TTL_SECONDS || 3600);
   },
+
+  /**
+   * S3 buckets that citation "Open" links may be signed for — the Knowledge
+   * Base document bucket(s). Comma-separated. Empty means the citation-link
+   * endpoint refuses to sign anything (default deny).
+   */
+  get citationDocBuckets(): string[] {
+    return (process.env.CITATION_DOC_BUCKETS ?? "")
+      .split(",")
+      .map((b) => b.trim())
+      .filter(Boolean);
+  },
 };

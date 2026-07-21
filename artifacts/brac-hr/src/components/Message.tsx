@@ -53,8 +53,14 @@ interface MessageProps {
   onRelatedClick?: (q: string) => void;
 }
 
+/** Strip inline citation-marker links for copied text: "[[1]](#cite-1)" → "[1]". */
+export function plainAnswerText(content: string): string {
+  return content.replace(/\[\[(\d+)\]\]\(#cite-\d+\)/g, "[$1]");
+}
+
 export function Message({ message, streaming, onFeedback, onRelatedClick }: MessageProps) {
   const isUser = message.role === "user";
+  const [openCitation, setOpenCitation] = useState<number | null>(null);
 
   if (isUser) {
     return (
@@ -96,18 +102,55 @@ export function Message({ message, streaming, onFeedback, onRelatedClick }: Mess
         >
           {message.content ? (
             <div className="prose-answer" style={{ color: "var(--text)" }}>
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  a: ({ href, children, ...props }) => {
+                    const cite = href?.match(/^#cite-(\d+)$/);
+                    if (cite) {
+                      const idx = Number(cite[1]) - 1;
+                      return (
+                        <sup>
+                          <button
+                            onClick={() => setOpenCitation(idx)}
+                            className="mx-0.5 inline-grid h-4 min-w-4 place-items-center rounded-full px-0.5 align-baseline text-[10px] font-semibold text-white transition-transform hover:scale-110"
+                            style={{ background: "var(--color-accent-500)" }}
+                            aria-label={`Show source ${cite[1]}`}
+                            title={`Show source ${cite[1]}`}
+                          >
+                            {cite[1]}
+                          </button>
+                        </sup>
+                      );
+                    }
+                    return (
+                      <a href={href} target="_blank" rel="noopener noreferrer" {...props}>
+                        {children}
+                      </a>
+                    );
+                  },
+                }}
+              >
+                {message.content}
+              </ReactMarkdown>
             </div>
           ) : (
             <WaitingIndicator />
           )}
 
-          {!streaming && message.citations && <CitationChips citations={message.citations} />}
+          {!streaming && message.citations && (
+            <CitationChips citations={message.citations} open={openCitation} onOpenChange={setOpenCitation} />
+          )}
+          {!streaming && message.citations && message.citations.length === 0 && !message.noResults && (
+            <p className="mt-2.5 text-[11px] italic" style={{ color: "var(--text-faint)" }}>
+              No specific policy document was cited for this answer.
+            </p>
+          )}
         </div>
 
         {!streaming && message.content && (
           <div className="mt-1.5 flex items-center gap-1 pl-1">
-            <CopyButton text={message.content} />
+            <CopyButton text={plainAnswerText(message.content)} />
             <FeedbackButton
               active={message.feedback === "up"}
               onClick={() => onFeedback?.("up")}
