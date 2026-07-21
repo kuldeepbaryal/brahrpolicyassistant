@@ -4,6 +4,9 @@ import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { config } from "@/lib/config";
 
 export const runtime = "nodejs";
+// Without this, Next may prerender this GET at build time and serve a frozen
+// snapshot from the build container instead of live runtime state.
+export const dynamic = "force-dynamic";
 
 // TEMPORARY diagnostic route — remove before go-live.
 export async function GET() {
@@ -54,5 +57,5 @@ export async function GET() {
     secretCharClasses: [...new Set(s.split("").map((ch) => (/[A-Za-z0-9]/.test(ch) ? "an" : ch)))].join(","),
   };
 
-  return NextResponse.json({ ok: true, env, region: config.awsRegion, tablePrefix: p, dynamo, shape });
+  return NextResponse.json({ ok: true, at: new Date().toISOString(), env, region: config.awsRegion, tablePrefix: p, dynamo, shape });
 }
