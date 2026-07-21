@@ -24,17 +24,19 @@ export function isMockMode(): boolean {
 
 export const config = {
   // ── AWS ──────────────────────────────────────────────────────────────────
+  // AWS_REGION is injected automatically by Lambda/Amplify at runtime.
+  // We read it directly; no need to set it as a custom env var.
   get awsRegion() {
-    return process.env.AWS_REGION || "us-east-1";
+    return process.env.AWS_REGION || process.env.BEDROCK_REGION || "ap-south-1";
   },
   /** Bedrock Knowledge Base ID (required in production). */
   get bedrockKbId() {
-    return req("AWS_BEDROCK_KB_ID");
+    return req("BEDROCK_KB_ID");
   },
   /** Full model ARN for Bedrock Knowledge Base generation. */
   get bedrockModelArn() {
     return (
-      process.env.AWS_BEDROCK_MODEL_ARN ||
+      process.env.BEDROCK_MODEL_ARN ||
       `arn:aws:bedrock:${this.awsRegion}::foundation-model/anthropic.claude-3-sonnet-20240229-v1:0`
     );
   },
