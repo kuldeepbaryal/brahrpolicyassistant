@@ -10,8 +10,10 @@ applications:
         build:
           commands:
             - cd ../../ && pnpm --filter @workspace/brac-hr run build
+            - cp -r public .next/standalone/public
+            - cp -r .next/static .next/standalone/.next/static
       artifacts:
-        baseDirectory: .next
+        baseDirectory: .next/standalone
         files:
           - '**/*'
       cache:

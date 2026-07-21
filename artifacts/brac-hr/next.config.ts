@@ -31,6 +31,7 @@ const allowedDevOrigins = [
 ];
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   poweredByHeader: false,
   allowedDevOrigins,
   async headers() {
