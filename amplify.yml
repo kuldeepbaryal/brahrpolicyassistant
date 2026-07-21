@@ -9,9 +9,7 @@ applications:
             - cd ../../ && pnpm install --no-frozen-lockfile
         build:
           commands:
-            - cd ../../ && pnpm --filter @workspace/brac-hr run build
-            - cp -r public .next/standalone/public
-            - cp -r .next/static .next/standalone/.next/static
+            - cd ../../ && pnpm --filter @workspace/brac-hr run build && cp -r artifacts/brac-hr/public artifacts/brac-hr/.next/standalone/public && cp -r artifacts/brac-hr/.next/static artifacts/brac-hr/.next/standalone/.next/static
       artifacts:
         baseDirectory: .next/standalone
         files:
