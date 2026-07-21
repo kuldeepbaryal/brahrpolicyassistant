@@ -32,6 +32,7 @@ import {
   DeleteCommand,
   UpdateCommand,
   BatchWriteCommand,
+  TransactWriteCommand,
 } from "@aws-sdk/lib-dynamodb";
 import { isMockMode, config } from "./config";
 import type { AnswerResult, ChatMessage, Conversation } from "./types";
@@ -44,6 +45,18 @@ export interface FeedbackEvent {
   question: string;
   answer: string;
   citations: { title: string; uri: string }[];
+  createdAt: number;
+}
+
+export interface RoleChangeEvent {
+  actorSub: string;
+  actorEmail: string;
+  actorName: string;
+  targetSub: string;
+  targetEmail: string;
+  targetName: string;
+  fromRole: "admin" | "user";
+  toRole: "admin" | "user";
   createdAt: number;
 }
 
@@ -62,6 +75,13 @@ export interface Db {
   getUser(sub: string): Promise<UserRecord | null>;
   listUsers(): Promise<UserRecord[]>;
   setUserRole(sub: string, role: "admin" | "user"): Promise<void>;
+  /**
+   * Atomically set a user's role AND append the audit event — either both
+   * persist or neither does, so a successful response always has audit evidence.
+   */
+  changeUserRole(sub: string, role: "admin" | "user", audit: RoleChangeEvent): Promise<void>;
+  /** Audit: role changes, newest first (bounded). */
+  listRoleChanges(limit: number): Promise<RoleChangeEvent[]>;
 
   listConversations(sub: string): Promise<Conversation[]>;
   createConversation(sub: string, title: string): Promise<Conversation>;
@@ -234,6 +254,49 @@ class DynamoDb implements Db {
         ExpressionAttributeValues: { ":r": role },
       })
     );
+  }
+
+  // Stored in the DailyStats table under a fixed partition so no new table or
+  // IAM change is needed (the app role already has Query/PutItem on it).
+  private static AUDIT_PK = "audit#role-changes";
+
+  async changeUserRole(sub: string, role: "admin" | "user", audit: RoleChangeEvent): Promise<void> {
+    await this.client.send(
+      new TransactWriteCommand({
+        TransactItems: [
+          {
+            Update: {
+              TableName: this.T.users,
+              Key: { sub },
+              ConditionExpression: "attribute_exists(#s)",
+              UpdateExpression: "SET #r = :r",
+              ExpressionAttributeNames: { "#r": "role", "#s": "sub" },
+              ExpressionAttributeValues: { ":r": role },
+            },
+          },
+          {
+            Put: {
+              TableName: this.T.dailyStats,
+              Item: { day: DynamoDb.AUDIT_PK, sk: `rc#${audit.createdAt}#${newId()}`, ...audit },
+            },
+          },
+        ],
+      })
+    );
+  }
+
+  async listRoleChanges(limit: number): Promise<RoleChangeEvent[]> {
+    const res = await this.client.send(
+      new QueryCommand({
+        TableName: this.T.dailyStats,
+        KeyConditionExpression: "#d = :d",
+        ExpressionAttributeNames: { "#d": "day" },
+        ExpressionAttributeValues: { ":d": DynamoDb.AUDIT_PK },
+        ScanIndexForward: false, // sk starts with the timestamp → newest first
+        Limit: limit,
+      })
+    );
+    return (res.Items ?? []) as RoleChangeEvent[];
   }
 
   async listConversations(sub: string): Promise<Conversation[]> {
@@ -618,6 +681,17 @@ export class MemoryDb implements Db {
   async setUserRole(sub: string, role: "admin" | "user") {
     const u = this.users.get(sub);
     if (u) u.role = role;
+  }
+
+  private roleChanges: RoleChangeEvent[] = [];
+  async changeUserRole(sub: string, role: "admin" | "user", audit: RoleChangeEvent) {
+    const u = this.users.get(sub);
+    if (!u) throw new Error("user not found");
+    u.role = role;
+    this.roleChanges.push(audit);
+  }
+  async listRoleChanges(limit: number) {
+    return [...this.roleChanges].sort((a, b) => b.createdAt - a.createdAt).slice(0, limit);
   }
 
   private messages = new Map<string, ChatMessage[]>();

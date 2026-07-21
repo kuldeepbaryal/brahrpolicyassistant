@@ -13,6 +13,16 @@ interface Insights {
   thumbsDown: { question: string; answer: string; createdAt: number }[];
 }
 
+interface RoleChange {
+  actorEmail: string;
+  actorName: string;
+  targetEmail: string;
+  targetName: string;
+  fromRole: "admin" | "user";
+  toRole: "admin" | "user";
+  createdAt: number;
+}
+
 interface AdminUser {
   sub: string;
   email: string;
@@ -177,7 +187,7 @@ export default function AdminPage() {
               </ul>
             </Section>
 
-            <UsersSection />
+            <UsersAndHistory />
           </>
         )}
       </div>
@@ -185,7 +195,75 @@ export default function AdminPage() {
   );
 }
 
-function UsersSection() {
+function UsersAndHistory() {
+  // Bump after every role change so the history list refreshes immediately.
+  const [historyVersion, setHistoryVersion] = useState(0);
+  return (
+    <>
+      <UsersSection onRoleChanged={() => setHistoryVersion((v) => v + 1)} />
+      <RoleChangeHistorySection version={historyVersion} />
+    </>
+  );
+}
+
+function RoleChangeHistorySection({ version }: { version: number }) {
+  const [changes, setChanges] = useState<RoleChange[] | null>(null);
+  const [error, setError] = useState<string>("");
+
+  useEffect(() => {
+    let stale = false;
+    fetch("/api/admin/role-changes")
+      .then(async (res) => {
+        if (stale) return;
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.message ?? "Failed to load role change history.");
+        }
+        const body = (await res.json()) as { changes: RoleChange[] };
+        setChanges(body.changes);
+        setError("");
+      })
+      .catch((e: Error) => { if (!stale) setError(e.message); });
+    return () => { stale = true; };
+  }, [version]);
+
+  return (
+    <Section
+      title="Role change history"
+      subtitle="Who promoted or demoted whom, and when. Newest first."
+      empty={changes !== null && changes.length === 0 && !error}
+      emptyText="No role changes recorded yet."
+    >
+      {error && (
+        <div className="mb-3 rounded-xl px-4 py-3 text-sm" role="alert" style={{ background: "var(--color-accent-50)", color: "var(--color-accent-700)" }}>
+          {error}
+        </div>
+      )}
+      {changes === null && !error && (
+        <p className="text-sm" style={{ color: "var(--text-muted)" }}>Loading…</p>
+      )}
+      {changes !== null && changes.length > 0 && (
+        <ul className="flex flex-col">
+          {changes.map((c, i) => (
+            <li key={i} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b py-2.5 last:border-0 text-sm" style={{ borderColor: "var(--border)" }}>
+              <span style={{ color: "var(--text)" }}>
+                <span className="font-medium">{c.actorName || c.actorEmail}</span>
+                {" "}{c.toRole === "admin" ? "made" : "changed"}{" "}
+                <span className="font-medium">{c.targetName || c.targetEmail}</span>
+                {" "}
+                {c.toRole === "admin" ? "an admin" : "a regular user"}
+                <span style={{ color: "var(--text-muted)" }}> ({c.fromRole} → {c.toRole})</span>
+              </span>
+              <span className="shrink-0 text-xs" style={{ color: "var(--text-faint)" }}>{fmtDateTime(c.createdAt)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Section>
+  );
+}
+
+function UsersSection({ onRoleChanged }: { onRoleChanged: () => void }) {
   const [users, setUsers] = useState<AdminUser[] | null>(null);
   const [me, setMe] = useState<string>("");
   const [error, setError] = useState<string>("");
@@ -222,6 +300,7 @@ function UsersSection() {
         throw new Error(body.message ?? "Failed to update role.");
       }
       setUsers((prev) => prev?.map((x) => (x.sub === u.sub ? { ...x, role: next } : x)) ?? null);
+      onRoleChanged();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to update role.");
     } finally {
@@ -342,4 +421,14 @@ function Section({
 
 function fmtDate(ms: number): string {
   return new Date(ms).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function fmtDateTime(ms: number): string {
+  return new Date(ms).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
