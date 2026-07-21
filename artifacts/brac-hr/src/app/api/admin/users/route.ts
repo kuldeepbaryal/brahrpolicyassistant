@@ -97,6 +97,19 @@ export async function PATCH(req: NextRequest) {
       }
     }
     await db.setUserRole(body.sub, body.role);
+    // Concurrency guard: two simultaneous demotions could both pass the
+    // pre-check above. Re-verify after the write and revert if the table was
+    // left with no admins at all.
+    if (target.role === "admin" && body.role === "user") {
+      const after = await db.listUsers();
+      if (!after.some((u) => u.role === "admin")) {
+        await db.setUserRole(body.sub, "admin");
+        return NextResponse.json(
+          { error: "last_admin", message: "You can't remove the last remaining admin." },
+          { status: 409 }
+        );
+      }
+    }
     log.info("role change", { by: hashUser(gate.user.sub), target: hashUser(body.sub), role: body.role });
     return NextResponse.json({ ok: true });
   } catch (err) {
