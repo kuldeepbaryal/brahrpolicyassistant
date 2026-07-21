@@ -1,10 +1,10 @@
 "use client";
 
 const STARTERS = [
-  "How many days of annual leave do I get?",
-  "What is the maternity leave policy?",
-  "How long is the probation period?",
-  "How do I claim medical expenses?",
+  "How do I report a safeguarding concern?",
+  "What counts as workplace bullying or violence?",
+  "How do I raise a whistleblowing complaint?",
+  "What is the sexual harassment complaint process?",
 ];
 
 export function EmptyState({ onPick }: { onPick: (q: string) => void }) {
@@ -12,11 +12,12 @@ export function EmptyState({ onPick }: { onPick: (q: string) => void }) {
     <div className="flex flex-1 flex-col items-center justify-center px-6 py-10 text-center animate-fade-in">
       {/* Avatar — flat, no gradient */}
       <div
-        className="grid h-14 w-14 place-items-center rounded-xl text-xl font-bold text-white"
+        className="grid h-14 w-14 place-items-center rounded-xl"
         style={{ background: "var(--color-accent-500)" }}
         aria-hidden
       >
-        H
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/avatar-mark.png" alt="" className="h-8 w-8" />
       </div>
 
       <h2
