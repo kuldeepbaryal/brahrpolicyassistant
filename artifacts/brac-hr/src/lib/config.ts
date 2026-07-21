@@ -47,10 +47,10 @@ export const config = {
   get bedrockModelArn() {
     return (
       process.env.BEDROCK_MODEL_ARN ||
-      // Claude 3 Haiku: the model this account has on-demand access to in
-      // ap-south-1 (Claude 3 Sonnet is not subscribed; inference profiles are
-      // not permitted by the app's IAM policy).
-      `arn:aws:bedrock:${this.awsRegion}::foundation-model/anthropic.claude-3-haiku-20240307-v1:0`
+      // Llama 3 70B: the strongest model this account has on-demand access to
+      // in ap-south-1 (Anthropic model access was retired; inference profiles
+      // are not permitted by the app's IAM policy).
+      `arn:aws:bedrock:${this.awsRegion}::foundation-model/meta.llama3-70b-instruct-v1:0`
     );
   },
   /** DynamoDB table name prefix — tables are e.g. BracHRConversations. */
