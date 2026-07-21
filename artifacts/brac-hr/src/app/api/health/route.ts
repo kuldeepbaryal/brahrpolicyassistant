@@ -79,5 +79,13 @@ export async function GET() {
     defaultChain = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
   }
 
-  return NextResponse.json({ ok: true, at: new Date().toISOString(), env, region: config.awsRegion, tablePrefix: p, dynamo, defaultChain, runtimeAws, shape });
+  // SHA-256 hashes let us compare the runtime values byte-for-byte against a
+  // known-good copy without revealing any secret material.
+  const { createHash } = await import("node:crypto");
+  const hashes = {
+    keySha256: createHash("sha256").update(k).digest("hex").slice(0, 16),
+    secretSha256: createHash("sha256").update(s).digest("hex").slice(0, 16),
+  };
+
+  return NextResponse.json({ ok: true, at: new Date().toISOString(), env, region: config.awsRegion, tablePrefix: p, dynamo, defaultChain, runtimeAws, shape, hashes });
 }
