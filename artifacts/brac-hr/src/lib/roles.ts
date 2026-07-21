@@ -54,9 +54,14 @@ export class RoleService {
     return this.deps.now ? this.deps.now() : Date.now();
   }
 
-  /** True when the email is on the env allowlist (fallback, always counts). */
+  /**
+   * True when the email is on the env allowlist or the hardcoded seed list
+   * (fallback, always counts — prevents lock-out regardless of DB state or
+   * deployment env plumbing).
+   */
   isAllowlistedAdmin(email: string): boolean {
-    return this.deps.adminEmails().includes(email.trim().toLowerCase());
+    const e = email.trim().toLowerCase();
+    return this.deps.adminEmails().includes(e) || this.deps.seedAdminEmails().includes(e);
   }
 
   /** Initial role for a first-time user record. */

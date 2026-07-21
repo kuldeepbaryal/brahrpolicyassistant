@@ -27,12 +27,12 @@ describe("effective role precedence", () => {
     expect(await service.isAdmin({ sub: "x", email: "BOSS@brac.net " })).toBe(true);
   });
 
-  it("DB record role wins over the seed list", async () => {
+  it("seed list always wins, even over a demoted DB record", async () => {
     const { store, service } = makeService({ seedAdminEmails: ["seed@brac.net"] });
     await addUser(store, "u1", "seed@brac.net", "user"); // demoted after seeding
-    expect(await service.isAdmin({ sub: "u1", email: "seed@brac.net" })).toBe(false);
-    await store.setUserRole("u1", "admin");
     expect(await service.isAdmin({ sub: "u1", email: "seed@brac.net" })).toBe(true);
+    await addUser(store, "u2", "other@brac.net", "user");
+    expect(await service.isAdmin({ sub: "u2", email: "other@brac.net" })).toBe(false);
   });
 
   it("with no record yet, the seed list applies", async () => {
@@ -41,7 +41,7 @@ describe("effective role precedence", () => {
     expect(await service.isAdmin({ sub: "new", email: "other@brac.net" })).toBe(false);
   });
 
-  it("storage errors fall back to the allowlist only", async () => {
+  it("storage errors fall back to the allowlist and seed list", async () => {
     const broken = {
       getUser: async () => {
         throw new StorageError("unavailable", "boom");
@@ -49,7 +49,8 @@ describe("effective role precedence", () => {
     } as unknown as UserStore;
     const { service } = makeService({ store: broken, adminEmails: ["boss@brac.net"], seedAdminEmails: ["seed@brac.net"] });
     expect(await service.isAdmin({ sub: "x", email: "boss@brac.net" })).toBe(true);
-    expect(await service.isAdmin({ sub: "x", email: "seed@brac.net" })).toBe(false);
+    expect(await service.isAdmin({ sub: "x", email: "seed@brac.net" })).toBe(true);
+    expect(await service.isAdmin({ sub: "x", email: "other@brac.net" })).toBe(false);
   });
 });
 
