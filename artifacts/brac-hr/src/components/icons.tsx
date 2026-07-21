@@ -75,6 +75,28 @@ export const IconLogout = (p: SVGProps<SVGSVGElement>) => (
     <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" />
   </svg>
 );
+export const IconSearch = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <circle cx="11" cy="11" r="7" />
+    <path d="M21 21l-4.35-4.35" />
+  </svg>
+);
+export const IconCopy = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <rect x="9" y="9" width="12" height="12" rx="2" />
+    <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+  </svg>
+);
+export const IconCheck = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <path d="M20 6L9 17l-5-5" />
+  </svg>
+);
+export const IconRefresh = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <path d="M21 12a9 9 0 11-2.64-6.36M21 3v6h-6" />
+  </svg>
+);
 export const IconDotsThree = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}>
     <circle cx="5" cy="12" r="1.2" fill="currentColor" stroke="none" />

@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Conversation } from "@/lib/types";
-import type { PublicUser } from "@/lib/client";
+import { api, type PublicUser } from "@/lib/client";
 import { BracLogo } from "./BracLogo";
-import { IconEdit, IconPlus, IconTrash, IconDotsThree } from "./icons";
+import { IconEdit, IconPlus, IconTrash, IconDotsThree, IconSearch } from "./icons";
 
 interface SidebarProps {
   user: PublicUser;
@@ -34,9 +34,33 @@ export function Sidebar({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  // ids matched server-side (message content); null = no active content search
+  const [contentIds, setContentIds] = useState<string[] | null>(null);
 
   const editRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // Debounced server-side content search alongside instant title filtering.
+  useEffect(() => {
+    const q = query.trim();
+    if (!q) {
+      setContentIds(null);
+      return;
+    }
+    const t = setTimeout(() => {
+      api.searchConversations(q).then(setContentIds).catch(() => setContentIds(null));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return conversations;
+    return conversations.filter(
+      (c) => c.title.toLowerCase().includes(q) || (contentIds ?? []).includes(c.id)
+    );
+  }, [conversations, query, contentIds]);
 
   useEffect(() => {
     if (editingId && editRef.current) editRef.current.focus();
@@ -84,6 +108,26 @@ export function Sidebar({
         </button>
       </div>
 
+      {/* Search */}
+      {conversations.length > 0 && (
+        <div className="px-3 pt-2.5">
+          <div
+            className="flex items-center gap-2 rounded-lg border px-2.5 py-1.5"
+            style={{ background: "var(--bg-elevated)", borderColor: "var(--border)" }}
+          >
+            <IconSearch width={14} height={14} style={{ color: "var(--text-faint)" }} aria-hidden />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search conversations"
+              aria-label="Search conversations"
+              className="w-full bg-transparent text-sm outline-none"
+              style={{ color: "var(--text)" }}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Conversation list */}
       <nav className="flex-1 overflow-y-auto px-2 py-2">
         {conversations.length === 0 && (
@@ -91,8 +135,13 @@ export function Sidebar({
             No conversations yet. Start by asking a question.
           </p>
         )}
+        {conversations.length > 0 && visible.length === 0 && (
+          <p className="px-2 py-3 text-xs" style={{ color: "var(--text-faint)" }}>
+            No conversations match &ldquo;{query.trim()}&rdquo;.
+          </p>
+        )}
         <ul className="flex flex-col gap-px">
-          {conversations.map((c) => (
+          {visible.map((c) => (
             <li key={c.id}>
               {editingId === c.id ? (
                 <div className="flex items-center gap-1 px-1 py-0.5">

@@ -7,7 +7,7 @@ import { Sidebar } from "./Sidebar";
 import { Composer } from "./Composer";
 import { EmptyState } from "./EmptyState";
 import { Message } from "./Message";
-import { IconMenu } from "./icons";
+import { IconMenu, IconRefresh } from "./icons";
 
 export function ChatApp({ user, onSignOut }: { user: PublicUser; onSignOut: () => void }) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -16,6 +16,7 @@ export function ChatApp({ user, onSignOut }: { user: PublicUser; onSignOut: () =
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [banner, setBanner] = useState<string | null>(null);
+  const [failedQuestion, setFailedQuestion] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -54,6 +55,7 @@ export function ChatApp({ user, onSignOut }: { user: PublicUser; onSignOut: () =
     async (text: string) => {
       if (sending) return;
       setBanner(null);
+      setFailedQuestion(null);
       setSending(true);
       setInput("");
 
@@ -107,6 +109,7 @@ export function ChatApp({ user, onSignOut }: { user: PublicUser; onSignOut: () =
         onError: (message) => {
           const id = streamingIdRef.current;
           setBanner(message);
+          setFailedQuestion(text);
           // Drop the empty assistant placeholder if nothing streamed.
           setMessages((prev) => prev.filter((m) => !(m.id === id && !m.content)));
         },
@@ -173,11 +176,25 @@ export function ChatApp({ user, onSignOut }: { user: PublicUser; onSignOut: () =
         {banner && (
           <div className="mx-auto mt-3 w-full max-w-3xl px-4">
             <div
-              className="rounded-xl px-4 py-2.5 text-sm animate-fade-in"
+              className="flex items-center justify-between gap-3 rounded-xl px-4 py-2.5 text-sm animate-fade-in"
               style={{ background: "var(--color-accent-50)", color: "var(--color-accent-700)" }}
               role="alert"
             >
-              {banner}
+              <span>{banner}</span>
+              {failedQuestion && (
+                <button
+                  onClick={() => {
+                    const q = failedQuestion;
+                    setFailedQuestion(null);
+                    setBanner(null);
+                    if (q) send(q);
+                  }}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1 text-xs font-medium transition-colors hover:bg-white"
+                  style={{ borderColor: "var(--color-accent-300)", color: "var(--color-accent-700)" }}
+                >
+                  <IconRefresh width={13} height={13} /> Retry
+                </button>
+              )}
             </div>
           </div>
         )}

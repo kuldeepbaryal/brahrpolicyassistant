@@ -26,7 +26,9 @@ const ANSWER_PREAMBLE =
   "You are BRAC's internal HR policy assistant. Answer ONLY using the retrieved BRAC HR policy documents. " +
   "If the documents do not contain the answer, say you could not find it in BRAC's HR policies and suggest " +
   "contacting hr@brac.net. Never speculate or invent policy details. " +
-  "Format answers with Markdown (short paragraphs, bullet lists for steps or entitlements).";
+  "Format answers with Markdown (short paragraphs, bullet lists for steps or entitlements). " +
+  "After your answer, on the very last line, output exactly: RELATED: followed by 3 short follow-up questions " +
+  "an employee might ask next, separated by ' | '. If you could not find an answer, omit the RELATED line.";
 
 function makeClient(): BedrockAgentRuntimeClient {
   return new BedrockAgentRuntimeClient({
@@ -147,7 +149,7 @@ async function runQuery(question: string, sessionName: string | null, started: n
   });
 
   const res = await getClient().send(command);
-  const answerText = res.output?.text ?? "";
+  const { answerText, relatedQuestions } = splitRelated(res.output?.text ?? "");
   const citations = extractCitations(res.citations ?? []);
   const noResults = !answerText.trim();
 
@@ -156,10 +158,27 @@ async function runQuery(question: string, sessionName: string | null, started: n
   return {
     answerText,
     citations,
-    relatedQuestions: [],
+    relatedQuestions,
     sessionName: res.sessionId ?? sessionName ?? null,
     noResults,
   };
+}
+
+/**
+ * The generation prompt asks the model to append a final "RELATED: q1 | q2 | q3"
+ * line. Strip it from the answer and surface the questions separately. Models
+ * sometimes omit the line — degrade to no suggestions.
+ */
+function splitRelated(raw: string): { answerText: string; relatedQuestions: string[] } {
+  const match = raw.match(/^\s*RELATED:\s*(.+?)\s*$/im);
+  if (!match) return { answerText: raw.trim(), relatedQuestions: [] };
+  const relatedQuestions = match[1]
+    .split("|")
+    .map((q) => q.trim().replace(/^[-•\d.\s]+/, ""))
+    .filter((q) => q.length > 3 && q.length <= 160)
+    .slice(0, 3);
+  const answerText = raw.replace(match[0], "").trim();
+  return { answerText, relatedQuestions };
 }
 
 /* ─────────────────────────── mock answers (dev) ──────────────────────── */

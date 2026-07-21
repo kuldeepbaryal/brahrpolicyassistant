@@ -1,10 +1,11 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { ChatMessage } from "@/lib/types";
 import { CitationChips } from "./CitationChips";
-import { IconThumbDown, IconThumbUp } from "./icons";
+import { IconCheck, IconCopy, IconThumbDown, IconThumbUp } from "./icons";
 
 export function TypingDots() {
   return (
@@ -16,6 +17,31 @@ export function TypingDots() {
           style={{ background: "var(--border-strong)", animationDelay: `${i * 0.15}s` }}
         />
       ))}
+    </div>
+  );
+}
+
+const WAIT_STAGES: Array<{ afterMs: number; label: string }> = [
+  { afterMs: 0, label: "Searching HR policies…" },
+  { afterMs: 5000, label: "Generating answer…" },
+  { afterMs: 15000, label: "Still working — long questions can take a moment…" },
+];
+
+/** Staged progress indicator shown while waiting for the first streamed word. */
+function WaitingIndicator() {
+  const [stage, setStage] = useState(0);
+  useEffect(() => {
+    const timers = WAIT_STAGES.slice(1).map((s, i) =>
+      setTimeout(() => setStage(i + 1), s.afterMs)
+    );
+    return () => timers.forEach(clearTimeout);
+  }, []);
+  return (
+    <div className="flex items-center gap-2.5 py-1" role="status" aria-live="polite">
+      <TypingDots />
+      <span className="text-sm animate-fade-in" key={stage} style={{ color: "var(--text-muted)" }}>
+        {WAIT_STAGES[stage].label}
+      </span>
     </div>
   );
 }
@@ -72,7 +98,7 @@ export function Message({ message, streaming, onFeedback, onRelatedClick }: Mess
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
             </div>
           ) : (
-            <TypingDots />
+            <WaitingIndicator />
           )}
 
           {!streaming && message.citations && <CitationChips citations={message.citations} />}
@@ -80,6 +106,7 @@ export function Message({ message, streaming, onFeedback, onRelatedClick }: Mess
 
         {!streaming && message.content && (
           <div className="mt-1.5 flex items-center gap-1 pl-1">
+            <CopyButton text={message.content} />
             <FeedbackButton
               active={message.feedback === "up"}
               onClick={() => onFeedback?.("up")}
@@ -115,6 +142,26 @@ export function Message({ message, streaming, onFeedback, onRelatedClick }: Mess
         )}
       </div>
     </div>
+  );
+}
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!copied) return;
+    const t = setTimeout(() => setCopied(false), 1500);
+    return () => clearTimeout(t);
+  }, [copied]);
+  return (
+    <button
+      onClick={() => navigator.clipboard.writeText(text).then(() => setCopied(true)).catch(() => {})}
+      aria-label={copied ? "Copied" : "Copy answer"}
+      title={copied ? "Copied" : "Copy answer"}
+      className="grid h-7 w-7 place-items-center rounded-lg transition-colors active:scale-[0.97]"
+      style={{ color: copied ? "var(--color-accent-500)" : "var(--text-faint)" }}
+    >
+      {copied ? <IconCheck width={14} height={14} /> : <IconCopy width={14} height={14} />}
+    </button>
   );
 }
 

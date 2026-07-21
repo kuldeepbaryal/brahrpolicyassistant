@@ -55,6 +55,10 @@ export const api = {
   async deleteConversation(id: string): Promise<void> {
     await fetch(`/api/conversations/${id}`, { method: "DELETE" });
   },
+  async searchConversations(q: string): Promise<string[]> {
+    const res = await fetch(`/api/conversations/search?q=${encodeURIComponent(q)}`);
+    return (await json<{ ids: string[] }>(res)).ids;
+  },
   async sendFeedback(conversationId: string, messageId: string, rating: "up" | "down"): Promise<void> {
     await fetch("/api/feedback", {
       method: "POST",
