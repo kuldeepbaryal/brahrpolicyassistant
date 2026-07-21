@@ -1,0 +1,35 @@
+kind = "web"
+previewPath = "/"
+title = "BRAC HR Assistant"
+version = "1.0.0"
+id = "artifacts/brac-hr"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 24378
+
+[services.development]
+run = "pnpm --filter @workspace/brac-hr run dev"
+
+[services.production]
+
+[services.production.build]
+args = ["pnpm", "--filter", "@workspace/brac-hr", "run", "build"]
+
+[services.production.build.env]
+NODE_ENV = "production"
+
+[services.production.run]
+args = ["pnpm", "--filter", "@workspace/brac-hr", "run", "start"]
+
+[services.production.run.env]
+NODE_ENV = "production"
+
+[services.production.health.startup]
+path = "/healthz"
+
+[services.env]
+PORT = "24378"
+BASE_PATH = "/"

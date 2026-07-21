@@ -1,0 +1,165 @@
+@import "tailwindcss";
+
+/*
+ * BRAC HR Chatbot — clean, neutral, single-accent design system.
+ * One accent color (muted rose-burgundy, rooted in BRAC's red brand).
+ * No gradients. No decorative dots. No glassmorphism on utility surfaces.
+ */
+
+@theme {
+  /* Single accent — muted rose-burgundy */
+  --color-accent-50:  #fdf2f6;
+  --color-accent-100: #fbe8ef;
+  --color-accent-200: #f5c6d8;
+  --color-accent-300: #e89db7;
+  --color-accent-400: #d06d8f;
+  --color-accent-500: #ae3a5f;
+  --color-accent-600: #8f2a4a;
+  --color-accent-700: #701f38;
+  --color-accent-800: #511427;
+  --color-accent-900: #300b17;
+
+  --font-sans: "Space Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* ── Semantic palette ───────────────────────────────────── */
+:root {
+  --bg:               #fafaf9;
+  --bg-elevated:      #ffffff;
+  --bg-sidebar:       #f2f0ee;
+  --border:           #e5e1df;
+  --border-strong:    #d4cec9;
+  --text:             #1c1715;
+  --text-muted:       #6b5f5a;
+  --text-faint:       #b09d98;
+
+  --bubble-user:      #fdf2f6;
+  --bubble-user-text: #701f38;
+  --bubble-assistant: #ffffff;
+  --code-bg:          #f7f5f4;
+
+  /* Neutral shadow — no color tint */
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.06);
+  --shadow:    0 1px 3px rgba(0,0,0,0.08), 0 4px 16px rgba(0,0,0,0.04);
+}
+
+* {
+  border-color: var(--border);
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--color-accent-300);
+  color: #fff;
+}
+
+/* Thin scrollbars — neutral */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-faint);
+}
+
+/* ── Motion ─────────────────────────────────────────────── */
+@keyframes msg-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0);   }
+}
+.animate-msg-in {
+  animation: msg-in 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.animate-fade-in {
+  animation: fade-in 0.35s ease;
+}
+
+@keyframes typing-bounce {
+  0%, 60%, 100% { transform: translateY(0);    opacity: 0.35; }
+  30%            { transform: translateY(-3px); opacity: 0.9;  }
+}
+.typing-dot {
+  animation: typing-bounce 1.2s infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-msg-in,
+  .animate-fade-in,
+  .typing-dot {
+    animation: none !important;
+  }
+}
+
+/* ── Prose markdown rendering ───────────────────────────── */
+.prose-answer {
+  font-size: 0.95rem;
+  line-height: 1.7;
+}
+.prose-answer h1, .prose-answer h2, .prose-answer h3 {
+  font-weight: 600;
+  margin: 1em 0 0.4em;
+  color: var(--text);
+}
+.prose-answer h1 { font-size: 1.15em; }
+.prose-answer h2 { font-size: 1.05em; }
+.prose-answer h3 { font-size: 0.97em; }
+.prose-answer p  { margin: 0.5em 0; }
+.prose-answer ul,
+.prose-answer ol { margin: 0.6em 0; padding-left: 1.4em; }
+.prose-answer ul { list-style: disc; }
+.prose-answer ol { list-style: decimal; }
+.prose-answer li { margin: 0.3em 0; }
+.prose-answer strong {
+  font-weight: 600;
+  color: var(--text);
+}
+.prose-answer a {
+  color: var(--color-accent-600);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.prose-answer code {
+  background: var(--code-bg);
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+  font-size: 0.87em;
+}
+.prose-answer table {
+  border-collapse: collapse;
+  margin: 0.8em 0;
+  width: 100%;
+  font-size: 0.9em;
+}
+.prose-answer th,
+.prose-answer td {
+  border: 1px solid var(--border-strong);
+  padding: 0.5em 0.75em;
+  text-align: left;
+}
+.prose-answer th {
+  background: var(--color-accent-50);
+  font-weight: 600;
+}
+.prose-answer blockquote {
+  border-left: 3px solid var(--color-accent-300);
+  padding-left: 1em;
+  margin: 0.8em 0;
+  color: var(--text-muted);
+}
