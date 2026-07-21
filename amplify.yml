@@ -18,7 +18,7 @@ applications:
             # Amplify console env vars exist only at BUILD time — persist the ones
             # the Next.js server needs into .env.production so the standalone
             # runtime (SSR compute) can read them.
-            - env | grep -E '^(APP_AWS_KEY|APP_AWS_SECRET|AWS_REGION|BEDROCK_KB_ID|BEDROCK_MODEL_ARN|DYNAMO_TABLE_PREFIX|GOOGLE_OAUTH_CLIENT_ID|SESSION_SECRET|SESSION_HOURS|ALLOWED_HOSTED_DOMAIN|RATE_LIMIT_PER_HOUR|ANSWER_CACHE_TTL_SECONDS)=' >> artifacts/brac-hr/.env.production || true
+            - env | grep -E '^(APP_AWS_KEY|APP_AWS_SECRET|AWS_REGION|BEDROCK_KB_ID|BEDROCK_MODEL_ARN|DYNAMO_TABLE_PREFIX|GOOGLE_OAUTH_CLIENT_ID|SESSION_SECRET|SESSION_HOURS|ALLOWED_HOSTED_DOMAIN|RATE_LIMIT_PER_HOUR|ANSWER_CACHE_TTL_SECONDS|ADMIN_EMAILS|CITATION_DOC_BUCKETS)=' >> artifacts/brac-hr/.env.production || true
             - REPO=$PWD && APP=$REPO/artifacts/brac-hr && S=$APP/.next/standalone && pnpm --filter @workspace/brac-hr run build && cp -r $S/artifacts/brac-hr/.next $S/.next && cp $S/artifacts/brac-hr/server.js $S/server.js && cp -r $APP/public $S/public && cp -r $APP/.next/static $S/.next/static && cp $APP/.next/required-server-files.json $S/ && (cp $APP/.env.production $S/.env.production || true) && rm -rf $S/artifacts
       artifacts:
         baseDirectory: .next
