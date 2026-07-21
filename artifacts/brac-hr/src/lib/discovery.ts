@@ -86,43 +86,66 @@ export async function answerQuery(
 
   const started = Date.now();
   try {
-    const command = new RetrieveAndGenerateCommand({
-      ...(opts.sessionName ? { sessionId: opts.sessionName } : {}),
-      input: { text: question },
-      retrieveAndGenerateConfiguration: {
-        type: "KNOWLEDGE_BASE",
-        knowledgeBaseConfiguration: {
-          knowledgeBaseId: config.bedrockKbId,
-          modelArn: config.bedrockModelArn,
-          generationConfiguration: {
-            promptTemplate: { textPromptTemplate: ANSWER_PREAMBLE + "\n\n$search_results$" },
-          },
+    return await runQuery(question, opts.sessionName ?? null, started);
+  } catch (err: unknown) {
+    // Bedrock rejects the entire call when given an expired/invalid sessionId
+    // (e.g. stored on an old conversation). Retry once without the session.
+    const name = (err as { name?: string }).name ?? "";
+    const msg = (err as Error).message ?? "";
+    const sessionProblem =
+      opts.sessionName && (name === "ResourceNotFoundException" || (name === "ValidationException" && /session/i.test(msg)));
+    if (sessionProblem) {
+      log.warn("answerQuery: stale Bedrock session, retrying without session");
+      try {
+        return await runQuery(question, null, started);
+      } catch (retryErr) {
+        throw mapError(retryErr, started);
+      }
+    }
+    throw mapError(err, started);
+  }
+}
+
+function mapError(err: unknown, started: number): Error {
+  const name = (err as { name?: string }).name ?? "";
+  if (name === "ThrottlingException" || name === "ServiceQuotaExceededException") {
+    return new QuotaError("Bedrock quota exceeded");
+  }
+  log.error("answerQuery failed", { latencyMs: Date.now() - started });
+  return new DiscoveryError(`Bedrock error: ${(err as Error).message}`);
+}
+
+// Throws the raw AWS error so the caller can inspect it (session retry, quota mapping).
+async function runQuery(question: string, sessionName: string | null, started: number): Promise<AnswerResult> {
+  const command = new RetrieveAndGenerateCommand({
+      ...(sessionName ? { sessionId: sessionName } : {}),
+    input: { text: question },
+    retrieveAndGenerateConfiguration: {
+      type: "KNOWLEDGE_BASE",
+      knowledgeBaseConfiguration: {
+        knowledgeBaseId: config.bedrockKbId,
+        modelArn: config.bedrockModelArn,
+        generationConfiguration: {
+          promptTemplate: { textPromptTemplate: ANSWER_PREAMBLE + "\n\n$search_results$" },
         },
       },
-    });
+    },
+  });
 
-    const res = await getClient().send(command);
-    const answerText = res.output?.text ?? "";
-    const citations = extractCitations(res.citations ?? []);
-    const noResults = !answerText.trim();
+  const res = await getClient().send(command);
+  const answerText = res.output?.text ?? "";
+  const citations = extractCitations(res.citations ?? []);
+  const noResults = !answerText.trim();
 
-    log.info("answerQuery ok", { latencyMs: Date.now() - started, noResults, citations: citations.length });
+  log.info("answerQuery ok", { latencyMs: Date.now() - started, noResults, citations: citations.length });
 
-    return {
-      answerText,
-      citations,
-      relatedQuestions: [],
-      sessionName: res.sessionId ?? opts.sessionName ?? null,
-      noResults,
-    };
-  } catch (err: unknown) {
-    const name = (err as { name?: string }).name ?? "";
-    if (name === "ThrottlingException" || name === "ServiceQuotaExceededException") {
-      throw new QuotaError("Bedrock quota exceeded");
-    }
-    log.error("answerQuery failed", { latencyMs: Date.now() - started });
-    throw new DiscoveryError(`Bedrock error: ${(err as Error).message}`);
-  }
+  return {
+    answerText,
+    citations,
+    relatedQuestions: [],
+    sessionName: res.sessionId ?? sessionName ?? null,
+    noResults,
+  };
 }
 
 /* ─────────────────────────── mock answers (dev) ──────────────────────── */
