@@ -1,25 +1,35 @@
 @import "tailwindcss";
 
 /*
- * BRAC HR Chatbot — clean, neutral, single-accent design system.
- * One accent color (muted rose-burgundy, rooted in BRAC's red brand).
+ * BRAC HR Assistant — design tokens per the BRAC Brandbook
+ * (Functional Guidelines, 2023).
+ * Primary: BRAC Magenta, Pantone Magenta — RGB 209/0/116 (#D10074), at 100%.
+ * Typeface: Helvetica Neue (primary), Arial (default fallback).
  * No gradients. No decorative dots. No glassmorphism on utility surfaces.
  */
 
 @theme {
-  /* Single accent — muted rose-burgundy */
-  --color-accent-50:  #fdf2f6;
-  --color-accent-100: #fbe8ef;
-  --color-accent-200: #f5c6d8;
-  --color-accent-300: #e89db7;
-  --color-accent-400: #d06d8f;
-  --color-accent-500: #ae3a5f;
-  --color-accent-600: #8f2a4a;
-  --color-accent-700: #701f38;
-  --color-accent-800: #511427;
-  --color-accent-900: #300b17;
+  /* Accent scale built from BRAC Magenta #D10074 (brand at -500) */
+  --color-accent-50:  #fdf0f7;
+  --color-accent-100: #fbe0ef;
+  --color-accent-200: #f7bcdc;
+  --color-accent-300: #ef8ac2;
+  --color-accent-400: #e24d9e;
+  --color-accent-500: #d10074;
+  --color-accent-600: #ad0060;
+  --color-accent-700: #88004c;
+  --color-accent-800: #620037;
+  --color-accent-900: #3d0022;
 
-  --font-sans: "Space Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* Brandbook secondary colours */
+  --color-brand-sky:      #3db7e4; /* Pantone 298 C */
+  --color-brand-gray:     #53565a; /* Pantone Cool Gray 11 C */
+  --color-brand-amber:    #ffa300; /* Pantone 137 C */
+  --color-brand-bluegray: #7b8fb9; /* Pantone 652 C */
+  --color-brand-deepred:  #a41e22; /* Pantone 7621 C */
+
+  /* Brand typography: Helvetica Neue primary, Arial default fallback */
+  --font-sans: "Helvetica Neue", Helvetica, Arial, ui-sans-serif, system-ui, sans-serif;
 }
 
 /* ── Semantic palette ───────────────────────────────────── */
@@ -33,10 +43,13 @@
   --text-muted:       #6b5f5a;
   --text-faint:       #b09d98;
 
-  --bubble-user:      #fdf2f6;
-  --bubble-user-text: #701f38;
+  --bubble-user:      #fdf0f7;
+  --bubble-user-text: #88004c;
   --bubble-assistant: #ffffff;
   --code-bg:          #f7f5f4;
+
+  /* Headings share the brand stack — one family across the app */
+  --font-display: var(--font-sans);
 
   /* Neutral shadow — no color tint */
   --shadow-sm: 0 1px 2px rgba(0,0,0,0.06);

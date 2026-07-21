@@ -107,7 +107,7 @@ export default function AdminPage() {
           <p className="mt-10 text-sm" style={{ color: "var(--text-muted)" }}>Loading…</p>
         )}
         {status === "error" && (
-          <div className="mt-6 rounded-xl px-4 py-3 text-sm" role="alert" style={{ background: "var(--color-accent-50)", color: "var(--color-accent-700)" }}>
+          <div className="mt-6 rounded-xl px-4 py-3 text-sm" role="alert" style={{ background: "#f8e9e9", color: "var(--color-brand-deepred)" }}>
             {errorMsg}
           </div>
         )}
@@ -115,16 +115,16 @@ export default function AdminPage() {
         {status === "ready" && data && (
           <>
             {data.truncated && (
-              <div className="mt-6 rounded-xl px-4 py-3 text-sm" style={{ background: "var(--color-accent-50)", color: "var(--color-accent-700)" }}>
+              <div className="mt-6 rounded-xl px-4 py-3 text-sm" style={{ background: "#fff4e0", color: "#7a5200" }}>
                 There was too much data to read completely — the numbers below are a lower bound. Try a shorter date range.
               </div>
             )}
             {/* Totals */}
             <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <Stat label="Questions asked" value={data.totals.questions} />
-              <Stat label="No answer found" value={data.totals.noResults} />
-              <Stat label="👍 Helpful" value={data.totals.thumbsUp} />
-              <Stat label="👎 Not helpful" value={data.totals.thumbsDown} />
+              <Stat label="Questions asked" value={data.totals.questions} color="var(--color-accent-500)" />
+              <Stat label="No answer found" value={data.totals.noResults} color="var(--color-brand-amber)" />
+              <Stat label="👍 Helpful" value={data.totals.thumbsUp} color="var(--color-brand-sky)" />
+              <Stat label="👎 Not helpful" value={data.totals.thumbsDown} color="var(--color-brand-deepred)" />
             </div>
 
             <Section title="Most-asked questions" empty={data.topQuestions.length === 0} emptyText="No questions in this period.">
@@ -237,7 +237,7 @@ function UsersSection() {
       emptyText="No users have signed in yet."
     >
       {error && (
-        <div className="mb-3 rounded-xl px-4 py-3 text-sm" role="alert" style={{ background: "var(--color-accent-50)", color: "var(--color-accent-700)" }}>
+        <div className="mb-3 rounded-xl px-4 py-3 text-sm" role="alert" style={{ background: "#f8e9e9", color: "var(--color-brand-deepred)" }}>
           {error}
         </div>
       )}
@@ -304,9 +304,12 @@ function Shell({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
+function Stat({ label, value, color }: { label: string; value: number; color?: string }) {
   return (
-    <div className="rounded-xl border p-4" style={{ borderColor: "var(--border)", background: "var(--bg-elevated)" }}>
+    <div
+      className="rounded-xl border p-4"
+      style={{ borderColor: "var(--border)", background: "var(--bg-elevated)", borderTop: `3px solid ${color ?? "var(--border)"}` }}
+    >
       <p className="text-2xl font-semibold" style={{ fontFamily: "var(--font-display)", color: "var(--text)" }}>{value}</p>
       <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>{label}</p>
     </div>

@@ -121,7 +121,7 @@ export function LoginScreen({
             {error && (
               <p
                 className="rounded-lg px-4 py-2 text-sm"
-                style={{ background: "var(--color-accent-50)", color: "var(--color-accent-700)" }}
+                style={{ background: "#f8e9e9", color: "var(--color-brand-deepred)" }}
               >
                 {error}
               </p>
