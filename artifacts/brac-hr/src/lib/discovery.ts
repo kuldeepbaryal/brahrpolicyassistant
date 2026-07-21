@@ -126,7 +126,21 @@ async function runQuery(question: string, sessionName: string | null, started: n
         knowledgeBaseId: config.bedrockKbId,
         modelArn: config.bedrockModelArn,
         generationConfiguration: {
-          promptTemplate: { textPromptTemplate: ANSWER_PREAMBLE + "\n\n$search_results$" },
+          promptTemplate: {
+            textPromptTemplate:
+              ANSWER_PREAMBLE +
+              "\n\nSearch results:\n$search_results$\n\nUser question: $query$",
+          },
+        },
+        // Required by models without a Bedrock-native RAG template (e.g. Kimi K2.5).
+        orchestrationConfiguration: {
+          promptTemplate: {
+            textPromptTemplate:
+              "Given the conversation below, rephrase the last user question into a standalone search query for an HR policy knowledge base.\n" +
+              "$conversation_history$\n" +
+              "Question: $query$\n" +
+              "$output_format_instructions$",
+          },
         },
       },
     },

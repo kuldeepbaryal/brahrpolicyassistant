@@ -47,10 +47,10 @@ export const config = {
   get bedrockModelArn() {
     return (
       process.env.BEDROCK_MODEL_ARN ||
-      // Llama 3 70B: the strongest model this account has on-demand access to
-      // in ap-south-1 (Anthropic model access was retired; inference profiles
-      // are not permitted by the app's IAM policy).
-      `arn:aws:bedrock:${this.awsRegion}::foundation-model/meta.llama3-70b-instruct-v1:0`
+      // Kimi K2.5 (Moonshot AI): user-selected model, verified accessible
+      // on-demand in ap-south-1. Requires custom generation + orchestration
+      // prompt templates (set in discovery.ts).
+      `arn:aws:bedrock:${this.awsRegion}::foundation-model/moonshotai.kimi-k2.5`
     );
   },
   /** DynamoDB table name prefix — tables are e.g. BracHRConversations. */
