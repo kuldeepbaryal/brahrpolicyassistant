@@ -3,7 +3,7 @@
  * Cloud Run instances). Fixed-window: users/{sub} + current UTC hour.
  */
 import { config } from "./config";
-import type { Db } from "./db";
+import type { ChatStore } from "./db";
 
 export interface RateLimitResult {
   allowed: boolean;
@@ -19,7 +19,11 @@ export function windowKeyFor(sub: string, now = new Date()): string {
   return `${sub}_${y}${m}${d}${h}`;
 }
 
-export async function checkRateLimit(db: Db, sub: string, now = new Date()): Promise<RateLimitResult> {
+export async function checkRateLimit(
+  db: Pick<ChatStore, "incrementRateCounter">,
+  sub: string,
+  now = new Date()
+): Promise<RateLimitResult> {
   const limit = config.rateLimitPerHour;
   const count = await db.incrementRateCounter(sub, windowKeyFor(sub, now));
   return { allowed: count <= limit, remaining: Math.max(0, limit - count), limit };

@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE, requireUser, AuthError } from "@/lib/auth";
 import { assertSameOrigin } from "@/lib/csrf";
-import { getDb } from "@/lib/db";
+import { getChatStore, StorageError } from "@/lib/db";
+import { log } from "@/lib/logger";
 
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
   try {
     const user = await requireUser(req.cookies.get(SESSION_COOKIE)?.value);
-    const conversations = await getDb().listConversations(user.sub);
+    const conversations = await getChatStore().listConversations(user.sub);
     return NextResponse.json({ conversations });
   } catch (err) {
     if (err instanceof AuthError) {
@@ -24,7 +25,7 @@ export async function POST(req: NextRequest) {
     const user = await requireUser(req.cookies.get(SESSION_COOKIE)?.value);
     const body = (await req.json().catch(() => ({}))) as { title?: string };
     const title = (body.title ?? "New conversation").slice(0, 120);
-    const conversation = await getDb().createConversation(user.sub, title);
+    const conversation = await getChatStore().createConversation(user.sub, title);
     return NextResponse.json({ conversation }, { status: 201 });
   } catch (err) {
     if (err instanceof AuthError) {
@@ -33,11 +34,11 @@ export async function POST(req: NextRequest) {
         { status: 401 }
       );
     }
-    // Configuration or database error — surface a helpful message.
-    const detail = err instanceof Error ? err.message : String(err);
-    console.error("createConversation failed:", detail);
+    // Storage error — log the typed code, keep the user message provider-neutral.
+    const code = err instanceof StorageError ? err.code : "unknown";
+    log.error("createConversation failed", { errorClass: code });
     return NextResponse.json(
-      { error: "server_error", message: "Service configuration error. Check GCP_PROJECT_ID and Firestore credentials." },
+      { error: "server_error", message: "Failed to create the conversation. Please try again." },
       { status: 500 }
     );
   }

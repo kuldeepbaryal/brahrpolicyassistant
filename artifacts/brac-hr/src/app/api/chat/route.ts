@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { SESSION_COOKIE, requireUser } from "@/lib/auth";
 import { assertSameOrigin } from "@/lib/csrf";
-import { getDb } from "@/lib/db";
+import { getChatStore, getInsightsStore } from "@/lib/db";
 import { answerQuery, createEngineSession, QuotaError } from "@/lib/discovery";
 import { checkRateLimit } from "@/lib/ratelimit";
 import { questionHash } from "@/lib/cache";
@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
     return new Response(JSON.stringify({ error: "bad_request" }), { status: 400 });
   }
 
-  const db = getDb();
+  const db = getChatStore();
   const conversation = await db.getConversation(user.sub, conversationId);
   if (!conversation) {
     return new Response(JSON.stringify({ error: "not_found" }), { status: 404 });
@@ -130,8 +130,9 @@ export async function POST(req: NextRequest) {
         await db.addMessage(user.sub, conversationId, assistantMsg);
         // Pre-aggregated dashboard stats — never let a stats failure break chat.
         try {
-          await db.recordQuestionAsked(question, userMsg.createdAt);
-          if (result.noResults) await db.recordNoResult(question, assistantMsg.createdAt);
+          const stats = getInsightsStore();
+          await stats.recordQuestionAsked(question, userMsg.createdAt);
+          if (result.noResults) await stats.recordNoResult(question, assistantMsg.createdAt);
         } catch (statErr) {
           log.error("stats write failed", {
             errorClass: "stats_write",

@@ -69,7 +69,32 @@ export interface UserRecord {
   lastSignInAt: number;
 }
 
-export interface Db {
+/* ───────────────────── Typed storage errors (the seam) ─────────────────
+ * Adapters translate provider-specific failures into these codes so no
+ * caller ever needs to know DynamoDB (or any provider) vocabulary. */
+
+export type StorageErrorCode =
+  /** The runtime identity lacks permission for the operation. */
+  | "permission_denied"
+  /** The backing table/resource does not exist yet. */
+  | "not_provisioned"
+  /** A conditional/atomic write lost its precondition (e.g. record missing). */
+  | "conflict"
+  /** Anything else — transient or unknown provider failure. */
+  | "unavailable";
+
+export class StorageError extends Error {
+  constructor(
+    public readonly code: StorageErrorCode,
+    message: string
+  ) {
+    super(message);
+    this.name = "StorageError";
+  }
+}
+
+/** Store for user profiles, roles, and the role-change audit trail. */
+export interface UserStore {
   /** Create-or-update the user profile on sign-in. Never overwrites an existing role. */
   upsertUser(user: { sub: string; email: string; name: string }, initialRole: "admin" | "user"): Promise<UserRecord>;
   getUser(sub: string): Promise<UserRecord | null>;
@@ -82,7 +107,10 @@ export interface Db {
   changeUserRole(sub: string, role: "admin" | "user", audit: RoleChangeEvent): Promise<void>;
   /** Audit: role changes, newest first (bounded). */
   listRoleChanges(limit: number): Promise<RoleChangeEvent[]>;
+}
 
+/** Store for conversations, messages, feedback, the answer cache, and rate limits. */
+export interface ChatStore {
   listConversations(sub: string): Promise<Conversation[]>;
   createConversation(sub: string, title: string): Promise<Conversation>;
   getConversation(sub: string, id: string): Promise<Conversation | null>;
@@ -101,7 +129,10 @@ export interface Db {
   setCachedAnswer(questionHash: string, answer: AnswerResult): Promise<void>;
 
   incrementRateCounter(sub: string, windowKey: string): Promise<number>;
+}
 
+/** Store for admin dashboard data: usage stats and (legacy) scans. */
+export interface InsightsStore {
   /** Admin: all messages across all users since a timestamp (table scan). */
   adminScanMessages(sinceMs: number): Promise<ScanResult<AdminMessage>>;
   /** Admin: all feedback events since a timestamp (table scan). */
@@ -116,6 +147,9 @@ export interface Db {
   /** Admin: pre-aggregated insights read from daily stats partitions (bounded, exact). */
   getDailyInsights(sinceMs: number): Promise<DailyInsightsData>;
 }
+
+/** Full storage surface — one object implements all three slices. */
+export interface Db extends UserStore, ChatStore, InsightsStore {}
 
 export interface DailyInsightsData {
   totals: { questions: number; noResults: number; thumbsUp: number; thumbsDown: number };
@@ -169,14 +203,50 @@ function newId(): string {
   return crypto.randomUUID().replace(/-/g, "").slice(0, 20);
 }
 
+/** Map an AWS SDK failure to a provider-neutral StorageError. */
+function toStorageError(err: unknown): StorageError {
+  if (err instanceof StorageError) return err;
+  const name = (err as { name?: string })?.name ?? "";
+  const message = err instanceof Error ? err.message : String(err);
+  if (/AccessDenied/i.test(name) || /AccessDenied/i.test(message)) {
+    return new StorageError("permission_denied", message);
+  }
+  if (/ResourceNotFound/i.test(name) || /ResourceNotFound/i.test(message)) {
+    return new StorageError("not_provisioned", message);
+  }
+  if (name === "ConditionalCheckFailedException") {
+    return new StorageError("conflict", message);
+  }
+  if (name === "TransactionCanceledException") {
+    // Prefer structured cancellation reasons over message text when available.
+    const reasons = (err as { CancellationReasons?: Array<{ Code?: string }> })?.CancellationReasons;
+    const conditional = reasons
+      ? reasons.some((r) => r?.Code === "ConditionalCheckFailed")
+      : /ConditionalCheckFailed/i.test(message);
+    return new StorageError(conditional ? "conflict" : "unavailable", message);
+  }
+  return new StorageError("unavailable", message);
+}
+
 function makeDynamoClient() {
   const raw = new DynamoDBClient({
     region: config.awsRegion,
     ...(config.awsCredentials ? { credentials: config.awsCredentials } : {}),
   });
-  return DynamoDBDocumentClient.from(raw, {
+  const client = DynamoDBDocumentClient.from(raw, {
     marshallOptions: { removeUndefinedValues: true },
   });
+  // Translate every provider failure at the seam, so callers of any store
+  // method only ever see StorageError codes — never DynamoDB vocabulary.
+  const originalSend = client.send.bind(client);
+  client.send = (async (...args: Parameters<typeof originalSend>) => {
+    try {
+      return await originalSend(...args);
+    } catch (err) {
+      throw toStorageError(err);
+    }
+  }) as typeof client.send;
+  return client;
 }
 
 class DynamoDb implements Db {
@@ -686,7 +756,7 @@ export class MemoryDb implements Db {
   private roleChanges: RoleChangeEvent[] = [];
   async changeUserRole(sub: string, role: "admin" | "user", audit: RoleChangeEvent) {
     const u = this.users.get(sub);
-    if (!u) throw new Error("user not found");
+    if (!u) throw new StorageError("conflict", "user record does not exist");
     u.role = role;
     this.roleChanges.push(audit);
   }
@@ -856,4 +926,18 @@ export function getDb(): Db {
     globalForDb.__bracHrDb = isMockMode() ? new MemoryDb() : new DynamoDb();
   }
   return globalForDb.__bracHrDb;
+}
+
+/* Narrow accessors — callers depend only on the slice they actually use. */
+
+export function getUserStore(): UserStore {
+  return getDb();
+}
+
+export function getChatStore(): ChatStore {
+  return getDb();
+}
+
+export function getInsightsStore(): InsightsStore {
+  return getDb();
 }

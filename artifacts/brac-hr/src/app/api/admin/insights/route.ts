@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE, requireUser, isAdmin, AuthError } from "@/lib/auth";
-import { getDb, normalizeQuestion, type AdminMessage } from "@/lib/db";
+import { getInsightsStore, normalizeQuestion, StorageError, type AdminMessage } from "@/lib/db";
 import { log, hashUser } from "@/lib/logger";
 
 export const runtime = "nodejs";
@@ -70,7 +70,7 @@ function aggregate(messages: AdminMessage[], days: number): Omit<AdminInsights, 
  * chat/feedback activity). Once stats exist, reads are bounded and exact.
  */
 async function legacyScanInsights(days: number, since: number): Promise<AdminInsights> {
-  const db = getDb();
+  const db = getInsightsStore();
   const [messagesRes, feedbackRes] = await Promise.all([
     db.adminScanMessages(since),
     db.adminScanFeedback(since),
@@ -118,7 +118,7 @@ export async function GET(req: NextRequest) {
     (days - 1) * 24 * 3600 * 1000;
 
   try {
-    const db = getDb();
+    const db = getInsightsStore();
 
     // Fast path: bounded reads over pre-aggregated day partitions. Counts are
     // exact — no scans, no truncation — regardless of total history size.
@@ -153,17 +153,16 @@ export async function GET(req: NextRequest) {
     log.info("admin insights", { user: hashUser(user.sub), days, source });
     return NextResponse.json(insights);
   } catch (err) {
-    const detail = err instanceof Error ? err.message : String(err);
-    // The app's IAM policy must allow dynamodb:Query/UpdateItem/PutItem on the
-    // DailyStats table (and dynamodb:Scan on Messages/Feedback for the legacy
-    // fallback) for this endpoint to work in production.
-    const isAccessDenied = /AccessDenied/i.test(detail);
+    // The app's storage identity must be able to read the DailyStats data
+    // (and scan Messages/Feedback for the legacy fallback) for this endpoint
+    // to work in production.
+    const isAccessDenied = err instanceof StorageError && err.code === "permission_denied";
     log.error("admin insights failed", { errorClass: isAccessDenied ? "access_denied" : "api_error" });
     return NextResponse.json(
       {
         error: "server_error",
         message: isAccessDenied
-          ? "The app's AWS role is missing DynamoDB permissions (Query on the DailyStats table / Scan on Messages+Feedback) needed for the dashboard."
+          ? "The app's storage permissions are missing reads on the stats data (and scans on Messages/Feedback) needed for the dashboard."
           : "Failed to load insights. Please try again.",
       },
       { status: 500 }

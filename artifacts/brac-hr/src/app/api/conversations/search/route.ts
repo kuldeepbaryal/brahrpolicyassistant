@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE, requireUser, AuthError } from "@/lib/auth";
-import { getDb } from "@/lib/db";
+import { getChatStore } from "@/lib/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
     const q = (req.nextUrl.searchParams.get("q") ?? "").trim().toLowerCase();
     if (q.length < 2 || q.length > 200) return NextResponse.json({ ids: [] });
 
-    const db = getDb();
+    const db = getChatStore();
     const conversations = await db.listConversations(user.sub);
     const ids = new Set<string>();
 

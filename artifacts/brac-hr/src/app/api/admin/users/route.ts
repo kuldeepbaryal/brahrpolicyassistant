@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE, requireUser, isAdmin, isAllowlistedAdmin } from "@/lib/auth";
 import { assertSameOrigin } from "@/lib/csrf";
-import { getDb } from "@/lib/db";
+import { getUserStore, StorageError } from "@/lib/db";
 import { log, hashUser } from "@/lib/logger";
 
 export const runtime = "nodejs";
@@ -14,20 +14,20 @@ async function requireAdmin(req: NextRequest) {
 }
 
 function errorResponse(err: unknown) {
-  const detail = err instanceof Error ? err.message : String(err);
-  const isAccessDenied = /AccessDenied/i.test(detail);
-  const isMissingTable = /ResourceNotFound/i.test(detail);
+  const code = err instanceof StorageError ? err.code : "unavailable";
   log.error("admin users failed", {
-    errorClass: isAccessDenied ? "access_denied" : isMissingTable ? "missing_table" : "api_error",
+    errorClass:
+      code === "permission_denied" ? "access_denied" : code === "not_provisioned" ? "missing_table" : "api_error",
   });
   return NextResponse.json(
     {
       error: "server_error",
-      message: isAccessDenied
-        ? "The app's AWS permissions don't cover the Users table yet."
-        : isMissingTable
-          ? "The Users table doesn't exist yet in DynamoDB."
-          : "Failed to load users. Please try again.",
+      message:
+        code === "permission_denied"
+          ? "The app's storage permissions don't cover the Users table yet."
+          : code === "not_provisioned"
+            ? "The Users table doesn't exist yet."
+            : "Failed to load users. Please try again.",
     },
     { status: 500 }
   );
@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
   if (!gate.ok) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
   try {
-    const users = await getDb().listUsers();
+    const users = await getUserStore().listUsers();
     return NextResponse.json({
       me: gate.user.sub,
       users: users.map((u) => ({
@@ -79,7 +79,7 @@ export async function PATCH(req: NextRequest) {
   }
 
   try {
-    const db = getDb();
+    const db = getUserStore();
     const users = await db.listUsers();
     const target = users.find((u) => u.sub === body.sub);
     if (!target) {

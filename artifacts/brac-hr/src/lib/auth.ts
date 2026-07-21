@@ -10,7 +10,7 @@
 import { OAuth2Client } from "google-auth-library";
 import { SignJWT, jwtVerify } from "jose";
 import { config, isMockMode } from "./config";
-import { getDb } from "./db";
+import { getUserStore } from "./db";
 import type { SessionUser } from "./types";
 
 export const SESSION_COOKIE = "brac_hr_session";
@@ -131,7 +131,7 @@ export async function isAdmin(user: Pick<SessionUser, "sub" | "email">): Promise
   if (isMockMode()) return true; // dev convenience
   if (isAllowlistedAdmin(user.email)) return true;
   try {
-    const rec = await getDb().getUser(user.sub);
+    const rec = await getUserStore().getUser(user.sub);
     if (rec) return rec.role === "admin";
     // No record yet (e.g. signed in before the users table existed) — seed list applies.
     return initialRoleFor(user.email) === "admin";

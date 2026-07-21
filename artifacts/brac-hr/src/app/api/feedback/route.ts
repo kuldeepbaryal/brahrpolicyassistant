@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE, requireUser } from "@/lib/auth";
 import { assertSameOrigin } from "@/lib/csrf";
-import { getDb } from "@/lib/db";
+import { getChatStore, getInsightsStore } from "@/lib/db";
 import { hashUser, log } from "@/lib/logger";
 
 export const runtime = "nodejs";
@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
     if (!body.conversationId || !body.messageId || !["up", "down"].includes(body.rating ?? "")) {
       return NextResponse.json({ error: "bad_request" }, { status: 400 });
     }
-    const db = getDb();
+    const db = getChatStore();
     const messages = await db.listMessages(user.sub, body.conversationId);
     const idx = messages.findIndex((m) => m.id === body.messageId && m.role === "assistant");
     if (idx === -1) return NextResponse.json({ error: "not_found" }, { status: 404 });
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     });
     // Pre-aggregated dashboard stats — never let a stats failure break feedback.
     try {
-      await db.recordFeedbackStat(body.rating!, question?.content ?? "", answer.content, Date.now());
+      await getInsightsStore().recordFeedbackStat(body.rating!, question?.content ?? "", answer.content, Date.now());
     } catch (statErr) {
       log.error("stats write failed", {
         errorClass: "stats_write",

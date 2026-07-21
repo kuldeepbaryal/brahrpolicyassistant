@@ -9,7 +9,7 @@ import {
   sessionCookieOptions,
   verifyGoogleIdToken,
 } from "@/lib/auth";
-import { getDb } from "@/lib/db";
+import { getUserStore } from "@/lib/db";
 import { assertSameOrigin } from "@/lib/csrf";
 import { isMockMode } from "@/lib/config";
 import { hashUser, log } from "@/lib/logger";
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     // Record the user profile (role preserved on subsequent sign-ins).
     // Non-fatal: sign-in must still work if the users table is unavailable.
     try {
-      await getDb().upsertUser(
+      await getUserStore().upsertUser(
         { sub: user.sub, email: user.email, name: user.name },
         initialRoleFor(user.email)
       );
