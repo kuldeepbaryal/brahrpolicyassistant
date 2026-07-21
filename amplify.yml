@@ -9,7 +9,10 @@ applications:
             - cd ../../ && pnpm install --no-frozen-lockfile
         build:
           commands:
-            - cd ../../ && pnpm --filter @workspace/brac-hr run build && cp -r artifacts/brac-hr/public artifacts/brac-hr/.next/standalone/public && cp -r artifacts/brac-hr/.next/static artifacts/brac-hr/.next/standalone/.next/static
+            - cd ../../ && pnpm --filter @workspace/brac-hr run build
+            - echo "CWD after build:$(pwd)" && ls -la
+            - cp -r $CODEBUILD_SRC_DIR/artifacts/brac-hr/public $CODEBUILD_SRC_DIR/artifacts/brac-hr/.next/standalone/public || true
+            - cp -r $CODEBUILD_SRC_DIR/artifacts/brac-hr/.next/static $CODEBUILD_SRC_DIR/artifacts/brac-hr/.next/standalone/.next/static || true
       artifacts:
         baseDirectory: .next/standalone
         files:
