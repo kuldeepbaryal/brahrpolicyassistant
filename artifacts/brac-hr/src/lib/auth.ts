@@ -10,6 +10,7 @@
 import { OAuth2Client } from "google-auth-library";
 import { SignJWT, jwtVerify } from "jose";
 import { config, isMockMode } from "./config";
+import { getDb } from "./db";
 import type { SessionUser } from "./types";
 
 export const SESSION_COOKIE = "brac_hr_session";
@@ -110,10 +111,33 @@ export async function requireUser(cookieValue: string | undefined): Promise<Sess
   return verifySessionJwt(cookieValue);
 }
 
-/** True when the signed-in user's email is on the HR admin allowlist. */
-export function isAdmin(email: string): boolean {
-  if (isMockMode()) return true; // dev convenience
+/** True when the email is on the env allowlist (fallback, always counts). */
+export function isAllowlistedAdmin(email: string): boolean {
   return config.adminEmails.includes(email.trim().toLowerCase());
+}
+
+/** Initial role for a first-time user record. */
+export function initialRoleFor(email: string): "admin" | "user" {
+  const e = email.trim().toLowerCase();
+  return config.seedAdminEmails.includes(e) || isAllowlistedAdmin(e) ? "admin" : "user";
+}
+
+/**
+ * Resolve admin status: DB user record role wins; the ADMIN_EMAILS env
+ * allowlist always counts as a fallback (prevents lock-out if the table is
+ * lost). Errors reading the user record fall back to the allowlist only.
+ */
+export async function isAdmin(user: Pick<SessionUser, "sub" | "email">): Promise<boolean> {
+  if (isMockMode()) return true; // dev convenience
+  if (isAllowlistedAdmin(user.email)) return true;
+  try {
+    const rec = await getDb().getUser(user.sub);
+    if (rec) return rec.role === "admin";
+    // No record yet (e.g. signed in before the users table existed) — seed list applies.
+    return initialRoleFor(user.email) === "admin";
+  } catch {
+    return false;
+  }
 }
 
 export function sessionCookieOptions() {

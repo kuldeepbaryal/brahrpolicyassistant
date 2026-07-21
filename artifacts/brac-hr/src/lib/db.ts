@@ -40,7 +40,22 @@ export interface FeedbackEvent {
   createdAt: number;
 }
 
+export interface UserRecord {
+  sub: string;
+  email: string;
+  name: string;
+  role: "admin" | "user";
+  createdAt: number;
+  lastSignInAt: number;
+}
+
 export interface Db {
+  /** Create-or-update the user profile on sign-in. Never overwrites an existing role. */
+  upsertUser(user: { sub: string; email: string; name: string }, initialRole: "admin" | "user"): Promise<UserRecord>;
+  getUser(sub: string): Promise<UserRecord | null>;
+  listUsers(): Promise<UserRecord[]>;
+  setUserRole(sub: string, role: "admin" | "user"): Promise<void>;
+
   listConversations(sub: string): Promise<Conversation[]>;
   createConversation(sub: string, title: string): Promise<Conversation>;
   getConversation(sub: string, id: string): Promise<Conversation | null>;
@@ -105,6 +120,7 @@ class DynamoDb implements Db {
     feedback: string;
     cache: string;
     rateLimits: string;
+    users: string;
   };
 
   constructor() {
@@ -116,7 +132,59 @@ class DynamoDb implements Db {
       feedback: `${p}Feedback`,
       cache: `${p}AnswerCache`,
       rateLimits: `${p}RateLimits`,
+      users: `${p}Users`,
     };
+  }
+
+  async upsertUser(
+    user: { sub: string; email: string; name: string },
+    initialRole: "admin" | "user"
+  ): Promise<UserRecord> {
+    const now = Date.now();
+    const res = await this.client.send(
+      new UpdateCommand({
+        TableName: this.T.users,
+        Key: { sub: user.sub },
+        // Role and createdAt only on first write — role is managed via setUserRole.
+        UpdateExpression:
+          "SET email = :e, #n = :n, lastSignInAt = :t, #r = if_not_exists(#r, :role), createdAt = if_not_exists(createdAt, :t)",
+        ExpressionAttributeNames: { "#n": "name", "#r": "role" },
+        ExpressionAttributeValues: { ":e": user.email, ":n": user.name, ":t": now, ":role": initialRole },
+        ReturnValues: "ALL_NEW",
+      })
+    );
+    return res.Attributes as UserRecord;
+  }
+
+  async getUser(sub: string): Promise<UserRecord | null> {
+    const res = await this.client.send(new GetCommand({ TableName: this.T.users, Key: { sub } }));
+    return (res.Item as UserRecord) ?? null;
+  }
+
+  async listUsers(): Promise<UserRecord[]> {
+    const items: UserRecord[] = [];
+    let lastKey: Record<string, unknown> | undefined;
+    do {
+      const res = await this.client.send(
+        new ScanCommand({ TableName: this.T.users, ExclusiveStartKey: lastKey })
+      );
+      items.push(...((res.Items ?? []) as UserRecord[]));
+      lastKey = res.LastEvaluatedKey as Record<string, unknown> | undefined;
+    } while (lastKey && items.length < 5000);
+    return items.sort((a, b) => b.lastSignInAt - a.lastSignInAt);
+  }
+
+  async setUserRole(sub: string, role: "admin" | "user"): Promise<void> {
+    await this.client.send(
+      new UpdateCommand({
+        TableName: this.T.users,
+        Key: { sub },
+        ConditionExpression: "attribute_exists(#s)",
+        UpdateExpression: "SET #r = :r",
+        ExpressionAttributeNames: { "#r": "role", "#s": "sub" },
+        ExpressionAttributeValues: { ":r": role },
+      })
+    );
   }
 
   async listConversations(sub: string): Promise<Conversation[]> {
@@ -352,7 +420,34 @@ class DynamoDb implements Db {
 /* ─────────────────────── In-memory implementation (mock) ─────────────── */
 
 export class MemoryDb implements Db {
+  private users = new Map<string, UserRecord>();
   private conversations = new Map<string, Map<string, Conversation>>();
+
+  async upsertUser(user: { sub: string; email: string; name: string }, initialRole: "admin" | "user") {
+    const now = Date.now();
+    const existing = this.users.get(user.sub);
+    const rec: UserRecord = {
+      sub: user.sub,
+      email: user.email,
+      name: user.name,
+      role: existing?.role ?? initialRole,
+      createdAt: existing?.createdAt ?? now,
+      lastSignInAt: now,
+    };
+    this.users.set(user.sub, rec);
+    return rec;
+  }
+  async getUser(sub: string) {
+    return this.users.get(sub) ?? null;
+  }
+  async listUsers() {
+    return [...this.users.values()].sort((a, b) => b.lastSignInAt - a.lastSignInAt);
+  }
+  async setUserRole(sub: string, role: "admin" | "user") {
+    const u = this.users.get(sub);
+    if (u) u.role = role;
+  }
+
   private messages = new Map<string, ChatMessage[]>();
   private feedback: FeedbackEvent[] = [];
   private cache = new Map<string, { answer: AnswerResult; expiresAt: number }>();

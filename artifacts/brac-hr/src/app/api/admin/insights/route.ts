@@ -76,7 +76,7 @@ export async function GET(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  if (!isAdmin(user.email)) {
+  if (!(await isAdmin(user))) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 

@@ -5,9 +5,11 @@ import {
   createSessionJwt,
   requireUser,
   isAdmin,
+  initialRoleFor,
   sessionCookieOptions,
   verifyGoogleIdToken,
 } from "@/lib/auth";
+import { getDb } from "@/lib/db";
 import { assertSameOrigin } from "@/lib/csrf";
 import { isMockMode } from "@/lib/config";
 import { hashUser, log } from "@/lib/logger";
@@ -29,8 +31,18 @@ export async function POST(req: NextRequest) {
       : await verifyGoogleIdToken(credential!);
     const jwt = await createSessionJwt(user);
     log.info("sign-in", { user: hashUser(user.sub) });
+    // Record the user profile (role preserved on subsequent sign-ins).
+    // Non-fatal: sign-in must still work if the users table is unavailable.
+    try {
+      await getDb().upsertUser(
+        { sub: user.sub, email: user.email, name: user.name },
+        initialRoleFor(user.email)
+      );
+    } catch {
+      log.warn("user upsert failed", { user: hashUser(user.sub) });
+    }
     const res = NextResponse.json({
-      user: { email: user.email, name: user.name, picture: user.picture, isAdmin: isAdmin(user.email) },
+      user: { email: user.email, name: user.name, picture: user.picture, isAdmin: await isAdmin(user) },
     });
     res.cookies.set(SESSION_COOKIE, jwt, sessionCookieOptions());
     return res;
@@ -52,7 +64,7 @@ export async function GET(req: NextRequest) {
   try {
     const user = await requireUser(req.cookies.get(SESSION_COOKIE)?.value);
     return NextResponse.json({
-      user: { email: user.email, name: user.name, picture: user.picture, isAdmin: isAdmin(user.email) },
+      user: { email: user.email, name: user.name, picture: user.picture, isAdmin: await isAdmin(user) },
     });
   } catch {
     return NextResponse.json({ user: null }, { status: 401 });

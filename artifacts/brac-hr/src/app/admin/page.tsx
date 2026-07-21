@@ -13,6 +13,14 @@ interface Insights {
   thumbsDown: { question: string; answer: string; createdAt: number }[];
 }
 
+interface AdminUser {
+  sub: string;
+  email: string;
+  name: string;
+  role: "admin" | "user";
+  lastSignInAt: number;
+}
+
 type Status = "loading" | "unauthorized" | "forbidden" | "error" | "ready";
 
 const RANGES = [7, 30, 90] as const;
@@ -168,10 +176,112 @@ export default function AdminPage() {
                 ))}
               </ul>
             </Section>
+
+            <UsersSection />
           </>
         )}
       </div>
     </Shell>
+  );
+}
+
+function UsersSection() {
+  const [users, setUsers] = useState<AdminUser[] | null>(null);
+  const [me, setMe] = useState<string>("");
+  const [error, setError] = useState<string>("");
+  const [busySub, setBusySub] = useState<string>("");
+
+  const load = () => {
+    fetch("/api/admin/users")
+      .then(async (res) => {
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.message ?? "Failed to load users.");
+        }
+        const body = (await res.json()) as { me: string; users: AdminUser[] };
+        setMe(body.me);
+        setUsers(body.users);
+        setError("");
+      })
+      .catch((e: Error) => setError(e.message));
+  };
+  useEffect(load, []);
+
+  const toggleRole = async (u: AdminUser) => {
+    const next = u.role === "admin" ? "user" : "admin";
+    setBusySub(u.sub);
+    setError("");
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sub: u.sub, role: next }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.message ?? "Failed to update role.");
+      }
+      setUsers((prev) => prev?.map((x) => (x.sub === u.sub ? { ...x, role: next } : x)) ?? null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to update role.");
+    } finally {
+      setBusySub("");
+    }
+  };
+
+  return (
+    <Section
+      title="Users"
+      subtitle="Everyone who has signed in. Admins can open this dashboard; role changes take effect on the user's next page load."
+      empty={users !== null && users.length === 0 && !error}
+      emptyText="No users have signed in yet."
+    >
+      {error && (
+        <div className="mb-3 rounded-xl px-4 py-3 text-sm" role="alert" style={{ background: "var(--color-accent-50)", color: "var(--color-accent-700)" }}>
+          {error}
+        </div>
+      )}
+      {users === null && !error && (
+        <p className="text-sm" style={{ color: "var(--text-muted)" }}>Loading…</p>
+      )}
+      {users !== null && users.length > 0 && (
+        <ul className="flex flex-col">
+          {users.map((u) => (
+            <li key={u.sub} className="flex flex-wrap items-center justify-between gap-3 border-b py-2.5 last:border-0" style={{ borderColor: "var(--border)" }}>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium" style={{ color: "var(--text)" }}>
+                  {u.name}
+                  {u.sub === me && (
+                    <span className="ml-2 text-xs font-normal" style={{ color: "var(--text-faint)" }}>(you)</span>
+                  )}
+                </p>
+                <p className="truncate text-xs" style={{ color: "var(--text-muted)" }}>
+                  {u.email} · last sign-in {fmtDate(u.lastSignInAt)}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span
+                  className="rounded-full px-2 py-0.5 text-xs font-medium"
+                  style={u.role === "admin"
+                    ? { background: "var(--color-accent-50)", color: "var(--color-accent-700)" }
+                    : { background: "var(--code-bg)", color: "var(--text-muted)" }}
+                >
+                  {u.role === "admin" ? "Admin" : "User"}
+                </span>
+                <button
+                  onClick={() => toggleRole(u)}
+                  disabled={busySub === u.sub}
+                  className="rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors hover:bg-[var(--code-bg)] disabled:opacity-50"
+                  style={{ borderColor: "var(--border-strong)", color: "var(--text)" }}
+                >
+                  {busySub === u.sub ? "Saving…" : u.role === "admin" ? "Make user" : "Make admin"}
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Section>
   );
 }
 
