@@ -57,5 +57,27 @@ export async function GET() {
     secretCharClasses: [...new Set(s.split("").map((ch) => (/[A-Za-z0-9]/.test(ch) ? "an" : ch)))].join(","),
   };
 
-  return NextResponse.json({ ok: true, at: new Date().toISOString(), env, region: config.awsRegion, tablePrefix: p, dynamo, shape });
+  // Runtime AWS environment probe: does the compute environment inject its
+  // own role credentials, and does the SDK default chain behave differently?
+  const runtimeAws = {
+    AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID ? process.env.AWS_ACCESS_KEY_ID.slice(0, 4) + "..." : "(not set)",
+    AWS_SESSION_TOKEN: !!process.env.AWS_SESSION_TOKEN,
+    AWS_LAMBDA_FUNCTION_NAME: process.env.AWS_LAMBDA_FUNCTION_NAME ? "set" : "(not set)",
+  };
+  let defaultChain: string;
+  try {
+    const dc = DynamoDBDocumentClient.from(new DynamoDBClient({ region: config.awsRegion }));
+    const res = await dc.send(
+      new QueryCommand({
+        TableName: `${p}Conversations`,
+        KeyConditionExpression: "userId = :u",
+        ExpressionAttributeValues: { ":u": "healthcheck" },
+      })
+    );
+    defaultChain = `QUERY OK (items: ${res.Count ?? 0})`;
+  } catch (err) {
+    defaultChain = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+  }
+
+  return NextResponse.json({ ok: true, at: new Date().toISOString(), env, region: config.awsRegion, tablePrefix: p, dynamo, defaultChain, runtimeAws, shape });
 }
