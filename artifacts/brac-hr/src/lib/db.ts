@@ -67,7 +67,10 @@ function newId(): string {
 }
 
 function makeDynamoClient() {
-  const raw = new DynamoDBClient({ region: config.awsRegion });
+  const raw = new DynamoDBClient({
+    region: config.awsRegion,
+    ...(config.awsCredentials ? { credentials: config.awsCredentials } : {}),
+  });
   return DynamoDBDocumentClient.from(raw, {
     marshallOptions: { removeUndefinedValues: true },
   });

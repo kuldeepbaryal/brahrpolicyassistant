@@ -29,7 +29,10 @@ const ANSWER_PREAMBLE =
   "Format answers with Markdown (short paragraphs, bullet lists for steps or entitlements).";
 
 function makeClient(): BedrockAgentRuntimeClient {
-  return new BedrockAgentRuntimeClient({ region: config.awsRegion });
+  return new BedrockAgentRuntimeClient({
+    region: config.awsRegion,
+    ...(config.awsCredentials ? { credentials: config.awsCredentials } : {}),
+  });
 }
 
 // Lazy singleton — initialised on first request so the region/model config

@@ -29,6 +29,16 @@ export const config = {
   get awsRegion() {
     return process.env.AWS_REGION || process.env.BEDROCK_REGION || "ap-south-1";
   },
+  // Explicit credentials for Amplify SSR compute (which has no IAM execution
+  // role). Set APP_AWS_KEY + APP_AWS_SECRET as Amplify env vars.
+  // When both are absent the SDK falls back to its default credential chain
+  // (works on Lambda / local dev with ~/.aws/credentials).
+  get awsCredentials() {
+    const key = process.env.APP_AWS_KEY;
+    const secret = process.env.APP_AWS_SECRET;
+    if (key && secret) return { accessKeyId: key, secretAccessKey: secret };
+    return undefined; // let the SDK resolve credentials automatically
+  },
   /** Bedrock Knowledge Base ID (required in production). */
   get bedrockKbId() {
     return req("BEDROCK_KB_ID");
