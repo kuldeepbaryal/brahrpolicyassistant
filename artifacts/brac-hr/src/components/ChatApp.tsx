@@ -183,7 +183,9 @@ export function ChatApp({ user, onSignOut }: { user: PublicUser; onSignOut: () =
               <span>{banner}</span>
               {failedQuestion && (
                 <button
+                  disabled={sending}
                   onClick={() => {
+                    if (sending) return;
                     const q = failedQuestion;
                     setFailedQuestion(null);
                     setBanner(null);

@@ -170,14 +170,21 @@ async function runQuery(question: string, sessionName: string | null, started: n
  * sometimes omit the line — degrade to no suggestions.
  */
 function splitRelated(raw: string): { answerText: string; relatedQuestions: string[] } {
-  const match = raw.match(/^\s*RELATED:\s*(.+?)\s*$/im);
+  const trimmed = raw.trimEnd();
+  // Only treat a STRICTLY trailing "RELATED: ..." line as suggestions —
+  // a "related:" mention mid-answer must never be stripped from the body.
+  const lastNewline = trimmed.lastIndexOf("\n");
+  const lastLine = trimmed.slice(lastNewline + 1).trim();
+  const match = lastLine.match(/^RELATED:\s*(.+)$/i);
   if (!match) return { answerText: raw.trim(), relatedQuestions: [] };
   const relatedQuestions = match[1]
     .split("|")
     .map((q) => q.trim().replace(/^[-•\d.\s]+/, ""))
     .filter((q) => q.length > 3 && q.length <= 160)
     .slice(0, 3);
-  const answerText = raw.replace(match[0], "").trim();
+  const answerText = (lastNewline === -1 ? "" : trimmed.slice(0, lastNewline)).trim();
+  // If the model ONLY output a RELATED line, keep the raw text as the answer.
+  if (!answerText) return { answerText: raw.trim(), relatedQuestions: [] };
   return { answerText, relatedQuestions };
 }
 

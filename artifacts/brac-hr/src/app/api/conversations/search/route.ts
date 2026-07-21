@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   try {
     const user = await requireUser(req.cookies.get(SESSION_COOKIE)?.value);
     const q = (req.nextUrl.searchParams.get("q") ?? "").trim().toLowerCase();
-    if (!q || q.length > 200) return NextResponse.json({ ids: [] });
+    if (q.length < 2 || q.length > 200) return NextResponse.json({ ids: [] });
 
     const db = getDb();
     const conversations = await db.listConversations(user.sub);

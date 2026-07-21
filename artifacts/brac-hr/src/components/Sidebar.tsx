@@ -44,14 +44,18 @@ export function Sidebar({
   // Debounced server-side content search alongside instant title filtering.
   useEffect(() => {
     const q = query.trim();
-    if (!q) {
+    if (q.length < 2) {
       setContentIds(null);
       return;
     }
+    let stale = false; // ignore responses that arrive after the query changed
     const t = setTimeout(() => {
-      api.searchConversations(q).then(setContentIds).catch(() => setContentIds(null));
+      api
+        .searchConversations(q)
+        .then((ids) => { if (!stale) setContentIds(ids); })
+        .catch(() => { if (!stale) setContentIds(null); });
     }, 300);
-    return () => clearTimeout(t);
+    return () => { stale = true; clearTimeout(t); };
   }, [query]);
 
   const visible = useMemo(() => {
