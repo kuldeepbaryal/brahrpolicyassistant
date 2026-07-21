@@ -128,6 +128,16 @@ export async function POST(req: NextRequest) {
         };
         await db.addMessage(user.sub, conversationId, userMsg);
         await db.addMessage(user.sub, conversationId, assistantMsg);
+        // Pre-aggregated dashboard stats — never let a stats failure break chat.
+        try {
+          await db.recordQuestionAsked(question, userMsg.createdAt);
+          if (result.noResults) await db.recordNoResult(question, assistantMsg.createdAt);
+        } catch (statErr) {
+          log.error("stats write failed", {
+            errorClass: "stats_write",
+            detail: statErr instanceof Error ? statErr.message : String(statErr),
+          });
+        }
         if (isFirstTurn) {
           await db.renameConversation(user.sub, conversationId, question.slice(0, 60));
         } else {

@@ -8,6 +8,13 @@
  *   BracHRFeedback        PK: feedbackId (S)
  *   BracHRAnswerCache     PK: questionHash (S)
  *   BracHRRateLimits      PK: windowKey (S)
+ *   BracHRDailyStats      PK: day (S "YYYY-MM-DD" UTC)  SK: sk (S)
+ *       sk = "totals"            → atomic counters (questions, noResults, thumbsUp, thumbsDown)
+ *       sk = "q#<normalized q>"  → per-question counter + sample raw question
+ *       sk = "e#<ts>#<id>"       → event record (type: no_result | thumbs_down)
+ *     Written on every chat/feedback event so the admin dashboard reads a
+ *     handful of small day partitions instead of scanning whole tables.
+ *     IAM: the app role needs dynamodb:Query, UpdateItem, PutItem on it.
  *
  * In mock mode an in-memory store is used (dev only — disabled in production).
  *
@@ -79,6 +86,46 @@ export interface Db {
   adminScanMessages(sinceMs: number): Promise<ScanResult<AdminMessage>>;
   /** Admin: all feedback events since a timestamp (table scan). */
   adminScanFeedback(sinceMs: number): Promise<ScanResult<FeedbackEvent>>;
+
+  /** Stats: a user asked a question (increments daily + per-question counters). */
+  recordQuestionAsked(question: string, at: number): Promise<void>;
+  /** Stats: an answer came back with no results. */
+  recordNoResult(question: string, at: number): Promise<void>;
+  /** Stats: a thumbs up/down was given. */
+  recordFeedbackStat(rating: "up" | "down", question: string, answer: string, at: number): Promise<void>;
+  /** Admin: pre-aggregated insights read from daily stats partitions (bounded, exact). */
+  getDailyInsights(sinceMs: number): Promise<DailyInsightsData>;
+}
+
+export interface DailyInsightsData {
+  totals: { questions: number; noResults: number; thumbsUp: number; thumbsDown: number };
+  /** Per normalized question: sample raw text + exact count across the window. */
+  questionCounts: { question: string; count: number }[];
+  noResultQuestions: { question: string; askedAt: number }[];
+  thumbsDown: { question: string; answer: string; createdAt: number }[];
+}
+
+/** Normalize a question for exact-duplicate counting (shared by stats + legacy path). */
+export function normalizeQuestion(q: string): string {
+  return q.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, "").replace(/\s+/g, " ").trim();
+}
+
+/** UTC day bucket, e.g. "2026-07-21". */
+function dayKey(at: number): string {
+  return new Date(at).toISOString().slice(0, 10);
+}
+
+/** All UTC day keys from sinceMs through today (inclusive). */
+function dayKeysSince(sinceMs: number): string[] {
+  const days: string[] = [];
+  const DAY = 24 * 3600 * 1000;
+  const end = Date.now();
+  for (let t = sinceMs; ; t += DAY) {
+    const k = dayKey(Math.min(t, end));
+    if (days[days.length - 1] !== k) days.push(k);
+    if (t >= end) break;
+  }
+  return days;
 }
 
 export interface ScanResult<T> {
@@ -121,6 +168,7 @@ class DynamoDb implements Db {
     cache: string;
     rateLimits: string;
     users: string;
+    dailyStats: string;
   };
 
   constructor() {
@@ -133,6 +181,7 @@ class DynamoDb implements Db {
       cache: `${p}AnswerCache`,
       rateLimits: `${p}RateLimits`,
       users: `${p}Users`,
+      dailyStats: `${p}DailyStats`,
     };
   }
 
@@ -415,6 +464,129 @@ class DynamoDb implements Db {
       "conversationId, messageId, rating, question, answer, createdAt"
     );
   }
+
+  /* ── Daily stats (pre-aggregated admin dashboard data) ── */
+
+  private async bumpTotals(at: number, field: "questions" | "noResults" | "thumbsUp" | "thumbsDown"): Promise<void> {
+    await this.client.send(
+      new UpdateCommand({
+        TableName: this.T.dailyStats,
+        Key: { day: dayKey(at), sk: "totals" },
+        UpdateExpression: "ADD #f :one",
+        ExpressionAttributeNames: { "#f": field },
+        ExpressionAttributeValues: { ":one": 1 },
+      })
+    );
+  }
+
+  private async putStatEvent(at: number, event: Record<string, unknown>): Promise<void> {
+    await this.client.send(
+      new PutCommand({
+        TableName: this.T.dailyStats,
+        Item: { day: dayKey(at), sk: `e#${at}#${newId()}`, createdAt: at, ...event },
+      })
+    );
+  }
+
+  async recordQuestionAsked(question: string, at: number): Promise<void> {
+    const writes: Promise<unknown>[] = [this.bumpTotals(at, "questions")];
+    const key = normalizeQuestion(question);
+    if (key) {
+      // SK length is bounded; extremely long questions share a truncated bucket.
+      writes.push(
+        this.client.send(
+          new UpdateCommand({
+            TableName: this.T.dailyStats,
+            Key: { day: dayKey(at), sk: `q#${key.slice(0, 512)}` },
+            UpdateExpression: "ADD #c :one SET question = if_not_exists(question, :q)",
+            ExpressionAttributeNames: { "#c": "count" },
+            ExpressionAttributeValues: { ":one": 1, ":q": question.slice(0, 2000) },
+          })
+        )
+      );
+    }
+    await Promise.all(writes);
+  }
+
+  async recordNoResult(question: string, at: number): Promise<void> {
+    await Promise.all([
+      this.bumpTotals(at, "noResults"),
+      this.putStatEvent(at, { type: "no_result", question: question.slice(0, 2000) }),
+    ]);
+  }
+
+  async recordFeedbackStat(rating: "up" | "down", question: string, answer: string, at: number): Promise<void> {
+    const writes: Promise<unknown>[] = [this.bumpTotals(at, rating === "up" ? "thumbsUp" : "thumbsDown")];
+    if (rating === "down") {
+      writes.push(
+        this.putStatEvent(at, {
+          type: "thumbs_down",
+          question: question.slice(0, 2000),
+          answer: answer.slice(0, 4000),
+        })
+      );
+    }
+    await Promise.all(writes);
+  }
+
+  async getDailyInsights(sinceMs: number): Promise<DailyInsightsData> {
+    const days = dayKeysSince(sinceMs);
+    const totals = { questions: 0, noResults: 0, thumbsUp: 0, thumbsDown: 0 };
+    const qMap = new Map<string, { question: string; count: number }>();
+    const noResultQuestions: { question: string; askedAt: number }[] = [];
+    const thumbsDown: { question: string; answer: string; createdAt: number }[] = [];
+
+    await Promise.all(
+      days.map(async (day) => {
+        let lastKey: Record<string, unknown> | undefined;
+        do {
+          const res = await this.client.send(
+            new QueryCommand({
+              TableName: this.T.dailyStats,
+              KeyConditionExpression: "#d = :d",
+              ExpressionAttributeNames: { "#d": "day" },
+              ExpressionAttributeValues: { ":d": day },
+              ExclusiveStartKey: lastKey,
+            })
+          );
+          for (const raw of res.Items ?? []) {
+            const item = raw as Record<string, unknown> & { sk: string };
+            if (item.sk === "totals") {
+              totals.questions += (item.questions as number) ?? 0;
+              totals.noResults += (item.noResults as number) ?? 0;
+              totals.thumbsUp += (item.thumbsUp as number) ?? 0;
+              totals.thumbsDown += (item.thumbsDown as number) ?? 0;
+            } else if (item.sk.startsWith("q#")) {
+              const key = item.sk.slice(2);
+              const entry = qMap.get(key) ?? { question: (item.question as string) ?? key, count: 0 };
+              entry.count += (item.count as number) ?? 0;
+              qMap.set(key, entry);
+            } else if (item.sk.startsWith("e#")) {
+              const createdAt = (item.createdAt as number) ?? 0;
+              if (createdAt < sinceMs) continue; // same-day events before the window start
+              if (item.type === "no_result") {
+                noResultQuestions.push({ question: (item.question as string) ?? "", askedAt: createdAt });
+              } else if (item.type === "thumbs_down") {
+                thumbsDown.push({
+                  question: (item.question as string) ?? "",
+                  answer: (item.answer as string) ?? "",
+                  createdAt,
+                });
+              }
+            }
+          }
+          lastKey = res.LastEvaluatedKey as Record<string, unknown> | undefined;
+        } while (lastKey);
+      })
+    );
+
+    return {
+      totals,
+      questionCounts: [...qMap.values()],
+      noResultQuestions,
+      thumbsDown,
+    };
+  }
 }
 
 /* ─────────────────────── In-memory implementation (mock) ─────────────── */
@@ -452,6 +624,9 @@ export class MemoryDb implements Db {
   private feedback: FeedbackEvent[] = [];
   private cache = new Map<string, { answer: AnswerResult; expiresAt: number }>();
   private counters = new Map<string, number>();
+  private statTotals = new Map<string, { questions: number; noResults: number; thumbsUp: number; thumbsDown: number }>();
+  private statQuestions = new Map<string, Map<string, { question: string; count: number }>>();
+  private statEvents: Array<{ type: "no_result" | "thumbs_down"; question: string; answer?: string; createdAt: number }> = [];
 
   private userConvs(sub: string) {
     if (!this.conversations.has(sub)) this.conversations.set(sub, new Map());
@@ -534,6 +709,67 @@ export class MemoryDb implements Db {
   }
   async adminScanFeedback(sinceMs: number): Promise<ScanResult<FeedbackEvent>> {
     return { items: this.feedback.filter((f) => f.createdAt >= sinceMs), truncated: false };
+  }
+
+  private dayTotals(at: number) {
+    const k = dayKey(at);
+    if (!this.statTotals.has(k)) {
+      this.statTotals.set(k, { questions: 0, noResults: 0, thumbsUp: 0, thumbsDown: 0 });
+    }
+    return this.statTotals.get(k)!;
+  }
+  async recordQuestionAsked(question: string, at: number) {
+    this.dayTotals(at).questions++;
+    const key = normalizeQuestion(question);
+    if (!key) return;
+    const day = dayKey(at);
+    if (!this.statQuestions.has(day)) this.statQuestions.set(day, new Map());
+    const m = this.statQuestions.get(day)!;
+    const entry = m.get(key) ?? { question, count: 0 };
+    entry.count++;
+    m.set(key, entry);
+  }
+  async recordNoResult(question: string, at: number) {
+    this.dayTotals(at).noResults++;
+    this.statEvents.push({ type: "no_result", question, createdAt: at });
+  }
+  async recordFeedbackStat(rating: "up" | "down", question: string, answer: string, at: number) {
+    if (rating === "up") this.dayTotals(at).thumbsUp++;
+    else {
+      this.dayTotals(at).thumbsDown++;
+      this.statEvents.push({ type: "thumbs_down", question, answer, createdAt: at });
+    }
+  }
+  async getDailyInsights(sinceMs: number): Promise<DailyInsightsData> {
+    const days = new Set(dayKeysSince(sinceMs));
+    const totals = { questions: 0, noResults: 0, thumbsUp: 0, thumbsDown: 0 };
+    for (const [day, t] of this.statTotals) {
+      if (!days.has(day)) continue;
+      totals.questions += t.questions;
+      totals.noResults += t.noResults;
+      totals.thumbsUp += t.thumbsUp;
+      totals.thumbsDown += t.thumbsDown;
+    }
+    const qMap = new Map<string, { question: string; count: number }>();
+    for (const [day, m] of this.statQuestions) {
+      if (!days.has(day)) continue;
+      for (const [key, e] of m) {
+        const entry = qMap.get(key) ?? { question: e.question, count: 0 };
+        entry.count += e.count;
+        qMap.set(key, entry);
+      }
+    }
+    const events = this.statEvents.filter((e) => e.createdAt >= sinceMs);
+    return {
+      totals,
+      questionCounts: [...qMap.values()],
+      noResultQuestions: events
+        .filter((e) => e.type === "no_result")
+        .map((e) => ({ question: e.question, askedAt: e.createdAt })),
+      thumbsDown: events
+        .filter((e) => e.type === "thumbs_down")
+        .map((e) => ({ question: e.question, answer: e.answer ?? "", createdAt: e.createdAt })),
+    };
   }
 }
 

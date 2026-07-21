@@ -40,6 +40,15 @@ export async function POST(req: NextRequest) {
       citations: (answer.citations ?? []).map((c) => ({ title: c.title, uri: c.uri })),
       createdAt: Date.now(),
     });
+    // Pre-aggregated dashboard stats — never let a stats failure break feedback.
+    try {
+      await db.recordFeedbackStat(body.rating!, question?.content ?? "", answer.content, Date.now());
+    } catch (statErr) {
+      log.error("stats write failed", {
+        errorClass: "stats_write",
+        detail: statErr instanceof Error ? statErr.message : String(statErr),
+      });
+    }
     log.info("feedback", { user: hashUser(user.sub), rating: body.rating });
     return NextResponse.json({ ok: true });
   } catch {

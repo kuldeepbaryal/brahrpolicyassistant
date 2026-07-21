@@ -1,2 +1,3 @@
 - [Amplify monorepo Next.js deploy](amplify-monorepo-nextjs.md) — Amplify doesn't reset CWD between build phases; pnpm symlinks break its node_modules/next check; fix = hoisted linker + flatten standalone.
+- [BRAC HR daily stats](brac-hr-daily-stats.md) — dashboard reads pre-aggregated DailyStats day partitions, not scans; table + IAM are provisioned manually in AWS; old history needs backfill.
 - [Amplify SSR runtime env & credential debugging](amplify-runtime-env.md) — console env vars are build-time only (bake into .env.production); SSR Lambda has no ambient AWS creds; compare sha256 hashes to catch pasted-key typos.

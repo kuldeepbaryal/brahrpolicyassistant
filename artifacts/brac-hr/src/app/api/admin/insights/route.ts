@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE, requireUser, isAdmin, AuthError } from "@/lib/auth";
-import { getDb, type AdminMessage } from "@/lib/db";
+import { getDb, normalizeQuestion, type AdminMessage } from "@/lib/db";
 import { log, hashUser } from "@/lib/logger";
 
 export const runtime = "nodejs";
@@ -11,16 +11,12 @@ const NO_RESULTS_PATTERN = /couldn'?t find this in BRAC'?s HR policies/i;
 
 export interface AdminInsights {
   days: number;
-  /** True when data volume forced a partial scan — counts are lower bounds. */
+  /** True only on the legacy scan fallback when data volume forced a partial scan. */
   truncated: boolean;
   totals: { questions: number; noResults: number; thumbsDown: number; thumbsUp: number };
   topQuestions: { question: string; count: number }[];
   noResultQuestions: { question: string; askedAt: number }[];
   thumbsDown: { question: string; answer: string; createdAt: number }[];
-}
-
-function normalize(q: string): string {
-  return q.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, "").replace(/\s+/g, " ").trim();
 }
 
 function aggregate(messages: AdminMessage[], days: number): Omit<AdminInsights, "thumbsDown" | "totals" | "truncated"> & {
@@ -43,7 +39,7 @@ function aggregate(messages: AdminMessage[], days: number): Omit<AdminInsights, 
       const m = msgs[i];
       if (m.role === "user") {
         questionCount++;
-        const key = normalize(m.content);
+        const key = normalizeQuestion(m.content);
         if (key) {
           const entry = counts.get(key) ?? { question: m.content, count: 0 };
           entry.count++;
@@ -68,6 +64,37 @@ function aggregate(messages: AdminMessage[], days: number): Omit<AdminInsights, 
   };
 }
 
+/**
+ * Legacy path: full table scans. Only used while the pre-aggregated DailyStats
+ * table has no data yet (i.e. right after this feature ships, before any new
+ * chat/feedback activity). Once stats exist, reads are bounded and exact.
+ */
+async function legacyScanInsights(days: number, since: number): Promise<AdminInsights> {
+  const db = getDb();
+  const [messagesRes, feedbackRes] = await Promise.all([
+    db.adminScanMessages(since),
+    db.adminScanFeedback(since),
+  ]);
+
+  const base = aggregate(messagesRes.items, days);
+  const down = feedbackRes.items
+    .filter((f) => f.rating === "down")
+    .sort((a, b) => b.createdAt - a.createdAt);
+  const up = feedbackRes.items.filter((f) => f.rating === "up");
+
+  return {
+    ...base,
+    truncated: messagesRes.truncated || feedbackRes.truncated,
+    totals: { ...base.totals, thumbsDown: down.length, thumbsUp: up.length },
+    // Deliberately no userEmail here — HR needs the Q/A pair, not the person.
+    thumbsDown: down.slice(0, 50).map((f) => ({
+      question: f.question,
+      answer: f.answer,
+      createdAt: f.createdAt,
+    })),
+  };
+}
+
 /** GET /api/admin/insights?days=7|30|90 — HR admin dashboard data. */
 export async function GET(req: NextRequest) {
   let user;
@@ -82,46 +109,61 @@ export async function GET(req: NextRequest) {
 
   const daysRaw = Number(req.nextUrl.searchParams.get("days") ?? 30);
   const days = [7, 30, 90].includes(daysRaw) ? daysRaw : 30;
-  const since = Date.now() - days * 24 * 3600 * 1000;
+  // Window = the last N UTC calendar days including today, starting at day
+  // boundary. This matches the day granularity of the pre-aggregated stats
+  // partitions, so counters and event lists share exactly the same window.
+  const now = new Date();
+  const since =
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) -
+    (days - 1) * 24 * 3600 * 1000;
 
   try {
     const db = getDb();
-    const [messagesRes, feedbackRes] = await Promise.all([
-      db.adminScanMessages(since),
-      db.adminScanFeedback(since),
-    ]);
 
-    const base = aggregate(messagesRes.items, days);
-    const down = feedbackRes.items
-      .filter((f) => f.rating === "down")
-      .sort((a, b) => b.createdAt - a.createdAt);
-    const up = feedbackRes.items.filter((f) => f.rating === "up");
+    // Fast path: bounded reads over pre-aggregated day partitions. Counts are
+    // exact — no scans, no truncation — regardless of total history size.
+    const daily = await db.getDailyInsights(since);
+    const hasStats =
+      daily.totals.questions > 0 ||
+      daily.totals.thumbsUp > 0 ||
+      daily.totals.thumbsDown > 0 ||
+      daily.totals.noResults > 0;
 
-    const insights: AdminInsights = {
-      ...base,
-      truncated: messagesRes.truncated || feedbackRes.truncated,
-      totals: { ...base.totals, thumbsDown: down.length, thumbsUp: up.length },
-      // Deliberately no userEmail here — HR needs the Q/A pair, not the person.
-      thumbsDown: down.slice(0, 50).map((f) => ({
-        question: f.question,
-        answer: f.answer,
-        createdAt: f.createdAt,
-      })),
-    };
+    let insights: AdminInsights;
+    let source: "daily_stats" | "legacy_scan";
+    if (hasStats) {
+      source = "daily_stats";
+      insights = {
+        days,
+        truncated: false,
+        totals: daily.totals,
+        topQuestions: daily.questionCounts.sort((a, b) => b.count - a.count).slice(0, 15),
+        noResultQuestions: daily.noResultQuestions
+          .sort((a, b) => b.askedAt - a.askedAt)
+          .slice(0, 50),
+        // Deliberately no userEmail here — HR needs the Q/A pair, not the person.
+        thumbsDown: daily.thumbsDown.sort((a, b) => b.createdAt - a.createdAt).slice(0, 50),
+      };
+    } else {
+      // Transition fallback: no aggregated data yet for this window.
+      source = "legacy_scan";
+      insights = await legacyScanInsights(days, since);
+    }
 
-    log.info("admin insights", { user: hashUser(user.sub), days, messages: messagesRes.items.length });
+    log.info("admin insights", { user: hashUser(user.sub), days, source });
     return NextResponse.json(insights);
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
-    // The app's IAM policy must include dynamodb:Scan on the Messages and
-    // Feedback tables for this endpoint to work in production.
+    // The app's IAM policy must allow dynamodb:Query/UpdateItem/PutItem on the
+    // DailyStats table (and dynamodb:Scan on Messages/Feedback for the legacy
+    // fallback) for this endpoint to work in production.
     const isAccessDenied = /AccessDenied/i.test(detail);
     log.error("admin insights failed", { errorClass: isAccessDenied ? "access_denied" : "api_error" });
     return NextResponse.json(
       {
         error: "server_error",
         message: isAccessDenied
-          ? "The app's AWS role is missing the dynamodb:Scan permission needed for the dashboard."
+          ? "The app's AWS role is missing DynamoDB permissions (Query on the DailyStats table / Scan on Messages+Feedback) needed for the dashboard."
           : "Failed to load insights. Please try again.",
       },
       { status: 500 }
