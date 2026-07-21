@@ -49,3 +49,4 @@ Thumbs.db
 .local/
 *.json filter=none
 attached_assets/brac-hr-chatbot-c3b031d3b0c2_1784566795293.json
+attached_assets/client_secret*

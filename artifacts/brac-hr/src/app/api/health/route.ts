@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { DynamoDBClient, DescribeTableCommand } from "@aws-sdk/client-dynamodb";
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { config } from "@/lib/config";
 
 export const runtime = "nodejs";
@@ -17,21 +18,27 @@ export async function GET() {
     MOCK_MODE: process.env.MOCK_MODE || "(not set)",
   };
 
-  // DynamoDB self-test: check each table the app needs.
-  const client = new DynamoDBClient({
-    region: config.awsRegion,
-    ...(config.awsCredentials ? { credentials: config.awsCredentials } : {}),
-  });
+  // DynamoDB self-test: run the same Query the app runs (the IAM policy only
+  // grants data-plane actions, so DescribeTable would always be denied).
+  const client = DynamoDBDocumentClient.from(
+    new DynamoDBClient({
+      region: config.awsRegion,
+      ...(config.awsCredentials ? { credentials: config.awsCredentials } : {}),
+    })
+  );
   const p = config.dynamoTablePrefix;
-  const tables = [`${p}Conversations`, `${p}Messages`, `${p}Feedback`, `${p}AnswerCache`, `${p}RateLimits`];
-  const dynamo: Record<string, string> = {};
-  for (const t of tables) {
-    try {
-      const res = await client.send(new DescribeTableCommand({ TableName: t }));
-      dynamo[t] = res.Table?.TableStatus ?? "UNKNOWN";
-    } catch (err) {
-      dynamo[t] = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
-    }
+  let dynamo: string;
+  try {
+    const res = await client.send(
+      new QueryCommand({
+        TableName: `${p}Conversations`,
+        KeyConditionExpression: "userId = :u",
+        ExpressionAttributeValues: { ":u": "healthcheck" },
+      })
+    );
+    dynamo = `QUERY OK (items: ${res.Count ?? 0})`;
+  } catch (err) {
+    dynamo = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
   }
 
   return NextResponse.json({ ok: true, env, region: config.awsRegion, tablePrefix: p, dynamo });
