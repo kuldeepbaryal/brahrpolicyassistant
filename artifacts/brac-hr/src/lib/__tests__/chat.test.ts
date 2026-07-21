@@ -181,6 +181,61 @@ describe("startChat no-result handling", () => {
   });
 });
 
+describe("startChat throttle retries", () => {
+  function throttlingKb(failures: number): KnowledgeBasePort & { calls: number } {
+    const kb = {
+      calls: 0,
+      createSession: async () => null,
+      answer: async () => {
+        kb.calls++;
+        if (kb.calls <= failures) throw new QuotaError("throttled");
+        return answer();
+      },
+    };
+    return kb;
+  }
+
+  it("retries a throttled call with backoff and still answers (throttle-then-succeed)", async () => {
+    const { db, conv } = await setup();
+    const kb = throttlingKb(2);
+    const slept: number[] = [];
+    const sleep = async (ms: number) => { slept.push(ms); };
+    const res = await startChat(USER, conv.id, "Q?", { chat: db, insights: db, kb, sleep });
+    if (!res.ok) throw new Error("expected ok");
+    const events = await collect(res.events);
+
+    expect(kb.calls).toBe(3);
+    expect(events[events.length - 1].event).toBe("done");
+    expect(fullText(events)).toBe("You get 20 days of annual leave.");
+    // Two backoff waits happened before the successful call, growing in size.
+    const backoffs = slept.filter((ms) => ms >= 400);
+    expect(backoffs.length).toBe(2);
+    expect(backoffs[1]).toBeGreaterThan(backoffs[0]);
+  });
+
+  it("gives up after the retry budget and shows the quota message (throttle-exhausted)", async () => {
+    const { db, conv } = await setup();
+    const kb = throttlingKb(Infinity);
+    const res = await startChat(USER, conv.id, "Q?", { chat: db, insights: db, kb, sleep: noSleep });
+    if (!res.ok) throw new Error("expected ok");
+    const events = await collect(res.events);
+
+    expect(kb.calls).toBe(4); // initial + 3 retries
+    expect(events.map((e) => e.event)).toEqual(["meta", "error"]);
+    expect((byEvent(events, "error")[0].data as { message: string }).message).toBe(QUOTA_MESSAGE);
+    expect(await db.listMessages(USER.sub, conv.id)).toEqual([]); // nothing persisted
+  });
+
+  it("does not retry non-throttle errors", async () => {
+    const { db, conv } = await setup();
+    const kb = mockKb(new Error("boom"));
+    const res = await startChat(USER, conv.id, "Q?", { chat: db, insights: db, kb, sleep: noSleep });
+    if (!res.ok) throw new Error("expected ok");
+    await collect(res.events);
+    expect(kb.calls).toBe(1);
+  });
+});
+
 describe("startChat failures inside the stream", () => {
   it("maps quota errors to the friendly quota message", async () => {
     const { db, conv } = await setup();

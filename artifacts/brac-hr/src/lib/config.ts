@@ -93,7 +93,9 @@ export const config = {
     return Number(process.env.RATE_LIMIT_PER_HOUR || 30);
   },
   get answerCacheTtlSeconds() {
-    return Number(process.env.ANSWER_CACHE_TTL_SECONDS || 3600);
+    // 6 hours: HR policy answers are stable, and a longer TTL keeps popular
+    // first-turn questions off Bedrock during traffic spikes.
+    return Number(process.env.ANSWER_CACHE_TTL_SECONDS || 21600);
   },
 
   /**

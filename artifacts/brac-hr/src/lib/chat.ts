@@ -63,6 +63,33 @@ export interface ChatDeps {
 const defaultSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 /**
+ * Backoff schedule for throttled knowledge-base calls (Bedrock quota is
+ * account-wide, so brief spikes usually clear within a second or two).
+ * ~3.3s worst-case total wait + jitter keeps the stream feeling alive.
+ */
+const THROTTLE_RETRY_DELAYS_MS = [400, 900, 2000];
+const THROTTLE_JITTER_MS = 250;
+
+/** Call the KB, retrying throttled (quota) failures with backoff + jitter. */
+async function answerWithRetry(
+  kb: KnowledgeBasePort,
+  question: string,
+  opts: { sessionName?: string | null; userPseudoId: string },
+  sleep: (ms: number) => Promise<void>
+): Promise<AnswerResult> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await kb.answer(question, opts);
+    } catch (err) {
+      if (!(err instanceof QuotaError) || attempt >= THROTTLE_RETRY_DELAYS_MS.length) throw err;
+      const delay = THROTTLE_RETRY_DELAYS_MS[attempt] + Math.random() * THROTTLE_JITTER_MS;
+      log.warn("KB throttled, retrying", { attempt: attempt + 1, delayMs: Math.round(delay) });
+      await sleep(delay);
+    }
+  }
+}
+
+/**
  * Start answering a question inside a conversation.
  *
  * Pre-stream failures (unknown conversation, rate limit) are returned as
@@ -121,7 +148,7 @@ export async function startChat(
           engineSession = await kb.createSession(userPseudoId);
           if (engineSession) await db.setEngineSession(user.sub, conversationId, engineSession);
         }
-        result = await kb.answer(question, { sessionName: engineSession, userPseudoId });
+        result = await answerWithRetry(kb, question, { sessionName: engineSession, userPseudoId }, sleep);
         if (result.sessionName && result.sessionName !== engineSession) {
           await db.setEngineSession(user.sub, conversationId, result.sessionName);
         }
