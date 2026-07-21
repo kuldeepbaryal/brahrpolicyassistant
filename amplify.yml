@@ -1,20 +1,18 @@
 version: 1
-applications:
-  - appRoot: artifacts/brac-hr
-    frontend:
-      phases:
-        preBuild:
-          commands:
-            - npm install -g pnpm@10.26.1
-            - cd ../../ && pnpm install --no-frozen-lockfile
-        build:
-          commands:
-            - cd ../../ && pnpm --filter @workspace/brac-hr run build
-      artifacts:
-        baseDirectory: .next
-        files:
-          - '**/*'
-      cache:
-        paths:
-          - .next/cache/**/*
-          - node_modules/**/*
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - npm install -g pnpm@10.26.1
+        - pnpm install --no-frozen-lockfile
+    build:
+      commands:
+        - pnpm --filter @workspace/brac-hr run build
+  artifacts:
+    baseDirectory: artifacts/brac-hr/.next
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - artifacts/brac-hr/.next/cache/**/*
+      - node_modules/**/*
