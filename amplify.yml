@@ -3,8 +3,8 @@ frontend:
   phases:
     preBuild:
       commands:
-        - npm install -g pnpm
-        - pnpm install --frozen-lockfile
+        - npm install -g pnpm@10.26.1
+        - pnpm install --no-frozen-lockfile
     build:
       commands:
         - pnpm --filter @workspace/brac-hr run build
