@@ -6,16 +6,18 @@ applications:
         preBuild:
           commands:
             - npm install -g pnpm@10.26.1
+            # node-linker=hoisted (in .npmrc) gives real node_modules dirs, so the
+            # standalone output bundles a real node_modules/next (no pnpm symlinks)
             - cd ../../ && pnpm install --no-frozen-lockfile
             # ↑ preBuild leaves CWD at repo root; build phase inherits it
         build:
           commands:
-            # CWD is already repo root (inherited from preBuild) — no cd needed
-            - REPO=$PWD && pnpm --filter @workspace/brac-hr run build && cp -r $REPO/artifacts/brac-hr/public $REPO/artifacts/brac-hr/.next/standalone/public && cp -r $REPO/artifacts/brac-hr/.next/static $REPO/artifacts/brac-hr/.next/standalone/.next/static && cp $REPO/artifacts/brac-hr/.next/required-server-files.json $REPO/artifacts/brac-hr/.next/standalone/
+            # CWD is repo root (inherited from preBuild). Build, then flatten the
+            # monorepo-nested standalone output (standalone/artifacts/brac-hr/*)
+            # into the classic single-repo layout Amplify expects.
+            - REPO=$PWD && APP=$REPO/artifacts/brac-hr && S=$APP/.next/standalone && pnpm --filter @workspace/brac-hr run build && cp -r $S/artifacts/brac-hr/.next $S/.next && cp $S/artifacts/brac-hr/server.js $S/server.js && cp -r $APP/public $S/public && cp -r $APP/.next/static $S/.next/static && cp $APP/.next/required-server-files.json $S/ && rm -rf $S/artifacts
       artifacts:
-        # standalone/ contains node_modules/next (satisfies Amplify's runtime check)
-        # and required-server-files.json is copied there by the build command above
-        baseDirectory: .next/standalone
+        baseDirectory: .next
         files:
           - '**/*'
       cache:

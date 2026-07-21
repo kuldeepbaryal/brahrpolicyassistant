@@ -1,0 +1,1 @@
+- [Amplify monorepo Next.js deploy](amplify-monorepo-nextjs.md) — Amplify doesn't reset CWD between build phases; pnpm symlinks break its node_modules/next check; fix = hoisted linker + flatten standalone.
