@@ -41,5 +41,18 @@ export async function GET() {
     dynamo = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
   }
 
-  return NextResponse.json({ ok: true, env, region: config.awsRegion, tablePrefix: p, dynamo });
+  // Masked credential shape diagnostics (no secret material revealed).
+  const k = process.env.APP_AWS_KEY ?? "";
+  const s = process.env.APP_AWS_SECRET ?? "";
+  const shape = {
+    keyLen: k.length,
+    keyStart: k.slice(0, 8),
+    keyEnd: k.slice(-2),
+    keyHasWhitespace: /\s/.test(k),
+    secretLen: s.length,
+    secretHasWhitespace: /\s/.test(s),
+    secretCharClasses: [...new Set(s.split("").map((ch) => (/[A-Za-z0-9]/.test(ch) ? "an" : ch)))].join(","),
+  };
+
+  return NextResponse.json({ ok: true, env, region: config.awsRegion, tablePrefix: p, dynamo, shape });
 }
