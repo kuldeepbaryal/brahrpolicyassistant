@@ -70,6 +70,13 @@ export const config = {
     if (!s && isMockMode()) return "mock-mode-dev-secret-do-not-use-in-prod";
     return s;
   },
+  /** Comma-separated list of HR admin emails allowed to view /admin. */
+  get adminEmails(): string[] {
+    return (process.env.ADMIN_EMAILS ?? "")
+      .split(",")
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean);
+  },
   get sessionHours() {
     return Number(process.env.SESSION_HOURS || 8);
   },

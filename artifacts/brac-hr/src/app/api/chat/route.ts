@@ -124,6 +124,7 @@ export async function POST(req: NextRequest) {
           relatedQuestions: result.relatedQuestions,
           createdAt: Date.now(),
           feedback: null,
+          ...(result.noResults ? { noResults: true } : {}),
         };
         await db.addMessage(user.sub, conversationId, userMsg);
         await db.addMessage(user.sub, conversationId, assistantMsg);

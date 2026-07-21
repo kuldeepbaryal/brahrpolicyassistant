@@ -4,6 +4,7 @@ import {
   SESSION_COOKIE,
   createSessionJwt,
   requireUser,
+  isAdmin,
   sessionCookieOptions,
   verifyGoogleIdToken,
 } from "@/lib/auth";
@@ -28,7 +29,9 @@ export async function POST(req: NextRequest) {
       : await verifyGoogleIdToken(credential!);
     const jwt = await createSessionJwt(user);
     log.info("sign-in", { user: hashUser(user.sub) });
-    const res = NextResponse.json({ user: { email: user.email, name: user.name, picture: user.picture } });
+    const res = NextResponse.json({
+      user: { email: user.email, name: user.name, picture: user.picture, isAdmin: isAdmin(user.email) },
+    });
     res.cookies.set(SESSION_COOKIE, jwt, sessionCookieOptions());
     return res;
   } catch (err) {
@@ -48,7 +51,9 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   try {
     const user = await requireUser(req.cookies.get(SESSION_COOKIE)?.value);
-    return NextResponse.json({ user: { email: user.email, name: user.name, picture: user.picture } });
+    return NextResponse.json({
+      user: { email: user.email, name: user.name, picture: user.picture, isAdmin: isAdmin(user.email) },
+    });
   } catch {
     return NextResponse.json({ user: null }, { status: 401 });
   }

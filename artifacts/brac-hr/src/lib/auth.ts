@@ -110,6 +110,12 @@ export async function requireUser(cookieValue: string | undefined): Promise<Sess
   return verifySessionJwt(cookieValue);
 }
 
+/** True when the signed-in user's email is on the HR admin allowlist. */
+export function isAdmin(email: string): boolean {
+  if (isMockMode()) return true; // dev convenience
+  return config.adminEmails.includes(email.trim().toLowerCase());
+}
+
 export function sessionCookieOptions() {
   return {
     httpOnly: true as const,

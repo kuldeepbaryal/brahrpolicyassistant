@@ -6,6 +6,7 @@ export interface PublicUser {
   email: string;
   name: string;
   picture?: string;
+  isAdmin?: boolean;
 }
 
 async function json<T>(res: Response): Promise<T> {

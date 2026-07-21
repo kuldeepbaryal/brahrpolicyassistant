@@ -258,6 +258,15 @@ export function Sidebar({
                   boxShadow: "var(--shadow)",
                 }}
               >
+                {user.isAdmin && (
+                  <a
+                    href="/admin"
+                    className="block w-full px-3 py-2 text-left text-sm transition-colors hover:bg-[var(--bg-sidebar)]"
+                    style={{ color: "var(--text)" }}
+                  >
+                    HR Insights
+                  </a>
+                )}
                 <button
                   onClick={() => { setMenuOpen(false); onSignOut(); }}
                   className="w-full px-3 py-2 text-left text-sm transition-colors hover:bg-[var(--bg-sidebar)]"

@@ -30,6 +30,8 @@ export interface ChatMessage {
   relatedQuestions?: string[];
   createdAt: number; // epoch millis
   feedback?: "up" | "down" | null;
+  /** Set on assistant messages when the engine found nothing in the HR docs. */
+  noResults?: boolean;
 }
 
 export interface Conversation {

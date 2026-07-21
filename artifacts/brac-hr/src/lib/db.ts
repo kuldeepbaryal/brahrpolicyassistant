@@ -21,6 +21,7 @@ import {
   GetCommand,
   PutCommand,
   QueryCommand,
+  ScanCommand,
   DeleteCommand,
   UpdateCommand,
   BatchWriteCommand,
@@ -58,6 +59,20 @@ export interface Db {
   setCachedAnswer(questionHash: string, answer: AnswerResult): Promise<void>;
 
   incrementRateCounter(sub: string, windowKey: string): Promise<number>;
+
+  /** Admin: all messages across all users since a timestamp (table scan). */
+  adminScanMessages(sinceMs: number): Promise<AdminMessage[]>;
+  /** Admin: all feedback events since a timestamp (table scan). */
+  adminScanFeedback(sinceMs: number): Promise<FeedbackEvent[]>;
+}
+
+export interface AdminMessage {
+  convKey: string;
+  role: "user" | "assistant";
+  content: string;
+  createdAt: number;
+  noResults?: boolean;
+  feedback?: "up" | "down" | null;
 }
 
 /* ─────────────────────── DynamoDB implementation ──────────────────────── */
@@ -281,6 +296,48 @@ class DynamoDb implements Db {
     );
     return (res.Attributes?.count as number) ?? 1;
   }
+
+  private async scanAll<T>(
+    tableName: string,
+    sinceMs: number,
+    projection: string,
+    names?: Record<string, string>
+  ): Promise<T[]> {
+    const items: T[] = [];
+    let lastKey: Record<string, unknown> | undefined;
+    do {
+      const res = await this.client.send(
+        new ScanCommand({
+          TableName: tableName,
+          FilterExpression: "createdAt >= :s",
+          ExpressionAttributeValues: { ":s": sinceMs },
+          ProjectionExpression: projection,
+          ...(names ? { ExpressionAttributeNames: names } : {}),
+          ExclusiveStartKey: lastKey,
+        })
+      );
+      items.push(...((res.Items ?? []) as T[]));
+      lastKey = res.LastEvaluatedKey as Record<string, unknown> | undefined;
+    } while (lastKey && items.length < 20000);
+    return items;
+  }
+
+  async adminScanMessages(sinceMs: number): Promise<AdminMessage[]> {
+    return this.scanAll<AdminMessage>(
+      this.T.messages,
+      sinceMs,
+      "convKey, #r, content, createdAt, noResults, feedback",
+      { "#r": "role" }
+    );
+  }
+
+  async adminScanFeedback(sinceMs: number): Promise<FeedbackEvent[]> {
+    return this.scanAll<FeedbackEvent>(
+      this.T.feedback,
+      sinceMs,
+      "userEmail, conversationId, messageId, rating, question, answer, citations, createdAt"
+    );
+  }
 }
 
 /* ─────────────────────── In-memory implementation (mock) ─────────────── */
@@ -352,6 +409,27 @@ export class MemoryDb implements Db {
     const next = (this.counters.get(windowKey) ?? 0) + 1;
     this.counters.set(windowKey, next);
     return next;
+  }
+  async adminScanMessages(sinceMs: number): Promise<AdminMessage[]> {
+    const out: AdminMessage[] = [];
+    for (const [key, msgs] of this.messages) {
+      for (const m of msgs) {
+        if (m.createdAt >= sinceMs) {
+          out.push({
+            convKey: key,
+            role: m.role,
+            content: m.content,
+            createdAt: m.createdAt,
+            noResults: m.noResults,
+            feedback: m.feedback,
+          });
+        }
+      }
+    }
+    return out;
+  }
+  async adminScanFeedback(sinceMs: number): Promise<FeedbackEvent[]> {
+    return this.feedback.filter((f) => f.createdAt >= sinceMs);
   }
 }
 
