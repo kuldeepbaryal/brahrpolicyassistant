@@ -61,9 +61,15 @@ export interface Db {
   incrementRateCounter(sub: string, windowKey: string): Promise<number>;
 
   /** Admin: all messages across all users since a timestamp (table scan). */
-  adminScanMessages(sinceMs: number): Promise<AdminMessage[]>;
+  adminScanMessages(sinceMs: number): Promise<ScanResult<AdminMessage>>;
   /** Admin: all feedback events since a timestamp (table scan). */
-  adminScanFeedback(sinceMs: number): Promise<FeedbackEvent[]>;
+  adminScanFeedback(sinceMs: number): Promise<ScanResult<FeedbackEvent>>;
+}
+
+export interface ScanResult<T> {
+  items: T[];
+  /** True when the scan stopped early — aggregates are then a lower bound. */
+  truncated: boolean;
 }
 
 export interface AdminMessage {
@@ -302,7 +308,8 @@ class DynamoDb implements Db {
     sinceMs: number,
     projection: string,
     names?: Record<string, string>
-  ): Promise<T[]> {
+  ): Promise<ScanResult<T>> {
+    const MAX_ITEMS = 20000;
     const items: T[] = [];
     let lastKey: Record<string, unknown> | undefined;
     do {
@@ -318,11 +325,13 @@ class DynamoDb implements Db {
       );
       items.push(...((res.Items ?? []) as T[]));
       lastKey = res.LastEvaluatedKey as Record<string, unknown> | undefined;
-    } while (lastKey && items.length < 20000);
-    return items;
+    } while (lastKey && items.length < MAX_ITEMS);
+    // If we stopped while more pages remained, surface it — never silently
+    // present partial aggregates as complete.
+    return { items, truncated: !!lastKey && items.length >= MAX_ITEMS };
   }
 
-  async adminScanMessages(sinceMs: number): Promise<AdminMessage[]> {
+  async adminScanMessages(sinceMs: number): Promise<ScanResult<AdminMessage>> {
     return this.scanAll<AdminMessage>(
       this.T.messages,
       sinceMs,
@@ -331,11 +340,11 @@ class DynamoDb implements Db {
     );
   }
 
-  async adminScanFeedback(sinceMs: number): Promise<FeedbackEvent[]> {
+  async adminScanFeedback(sinceMs: number): Promise<ScanResult<FeedbackEvent>> {
     return this.scanAll<FeedbackEvent>(
       this.T.feedback,
       sinceMs,
-      "userEmail, conversationId, messageId, rating, question, answer, citations, createdAt"
+      "conversationId, messageId, rating, question, answer, createdAt"
     );
   }
 }
@@ -410,7 +419,7 @@ export class MemoryDb implements Db {
     this.counters.set(windowKey, next);
     return next;
   }
-  async adminScanMessages(sinceMs: number): Promise<AdminMessage[]> {
+  async adminScanMessages(sinceMs: number): Promise<ScanResult<AdminMessage>> {
     const out: AdminMessage[] = [];
     for (const [key, msgs] of this.messages) {
       for (const m of msgs) {
@@ -426,10 +435,10 @@ export class MemoryDb implements Db {
         }
       }
     }
-    return out;
+    return { items: out, truncated: false };
   }
-  async adminScanFeedback(sinceMs: number): Promise<FeedbackEvent[]> {
-    return this.feedback.filter((f) => f.createdAt >= sinceMs);
+  async adminScanFeedback(sinceMs: number): Promise<ScanResult<FeedbackEvent>> {
+    return { items: this.feedback.filter((f) => f.createdAt >= sinceMs), truncated: false };
   }
 }
 

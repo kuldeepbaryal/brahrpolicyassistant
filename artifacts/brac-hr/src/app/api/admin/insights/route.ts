@@ -11,17 +11,19 @@ const NO_RESULTS_PATTERN = /couldn'?t find this in BRAC'?s HR policies/i;
 
 export interface AdminInsights {
   days: number;
+  /** True when data volume forced a partial scan — counts are lower bounds. */
+  truncated: boolean;
   totals: { questions: number; noResults: number; thumbsDown: number; thumbsUp: number };
   topQuestions: { question: string; count: number }[];
   noResultQuestions: { question: string; askedAt: number }[];
-  thumbsDown: { question: string; answer: string; userEmail: string; createdAt: number }[];
+  thumbsDown: { question: string; answer: string; createdAt: number }[];
 }
 
 function normalize(q: string): string {
   return q.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, "").replace(/\s+/g, " ").trim();
 }
 
-function aggregate(messages: AdminMessage[], days: number): Omit<AdminInsights, "thumbsDown" | "totals"> & {
+function aggregate(messages: AdminMessage[], days: number): Omit<AdminInsights, "thumbsDown" | "totals" | "truncated"> & {
   totals: Pick<AdminInsights["totals"], "questions" | "noResults">;
 } {
   // Group by conversation and order chronologically to pair Q → A.
@@ -84,27 +86,30 @@ export async function GET(req: NextRequest) {
 
   try {
     const db = getDb();
-    const [messages, feedback] = await Promise.all([
+    const [messagesRes, feedbackRes] = await Promise.all([
       db.adminScanMessages(since),
       db.adminScanFeedback(since),
     ]);
 
-    const base = aggregate(messages, days);
-    const down = feedback.filter((f) => f.rating === "down").sort((a, b) => b.createdAt - a.createdAt);
-    const up = feedback.filter((f) => f.rating === "up");
+    const base = aggregate(messagesRes.items, days);
+    const down = feedbackRes.items
+      .filter((f) => f.rating === "down")
+      .sort((a, b) => b.createdAt - a.createdAt);
+    const up = feedbackRes.items.filter((f) => f.rating === "up");
 
     const insights: AdminInsights = {
       ...base,
+      truncated: messagesRes.truncated || feedbackRes.truncated,
       totals: { ...base.totals, thumbsDown: down.length, thumbsUp: up.length },
+      // Deliberately no userEmail here — HR needs the Q/A pair, not the person.
       thumbsDown: down.slice(0, 50).map((f) => ({
         question: f.question,
         answer: f.answer,
-        userEmail: f.userEmail,
         createdAt: f.createdAt,
       })),
     };
 
-    log.info("admin insights", { user: hashUser(user.sub), days, messages: messages.length });
+    log.info("admin insights", { user: hashUser(user.sub), days, messages: messagesRes.items.length });
     return NextResponse.json(insights);
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);

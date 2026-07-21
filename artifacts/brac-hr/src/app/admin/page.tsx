@@ -6,10 +6,11 @@ import { BracLogo } from "@/components/BracLogo";
 
 interface Insights {
   days: number;
+  truncated: boolean;
   totals: { questions: number; noResults: number; thumbsDown: number; thumbsUp: number };
   topQuestions: { question: string; count: number }[];
   noResultQuestions: { question: string; askedAt: number }[];
-  thumbsDown: { question: string; answer: string; userEmail: string; createdAt: number }[];
+  thumbsDown: { question: string; answer: string; createdAt: number }[];
 }
 
 type Status = "loading" | "unauthorized" | "forbidden" | "error" | "ready";
@@ -105,6 +106,11 @@ export default function AdminPage() {
 
         {status === "ready" && data && (
           <>
+            {data.truncated && (
+              <div className="mt-6 rounded-xl px-4 py-3 text-sm" style={{ background: "var(--color-accent-50)", color: "var(--color-accent-700)" }}>
+                There was too much data to read completely — the numbers below are a lower bound. Try a shorter date range.
+              </div>
+            )}
             {/* Totals */}
             <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
               <Stat label="Questions asked" value={data.totals.questions} />
@@ -158,7 +164,6 @@ export default function AdminPage() {
                     <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
                       {f.answer.length > 600 ? f.answer.slice(0, 600) + "…" : f.answer}
                     </p>
-                    <p className="mt-2 text-xs" style={{ color: "var(--text-faint)" }}>{f.userEmail}</p>
                   </li>
                 ))}
               </ul>
