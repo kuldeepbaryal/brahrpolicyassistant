@@ -75,13 +75,14 @@ export function Message({ message, streaming, onFeedback, onRelatedClick }: Mess
 
   return (
     <div className="flex gap-3 animate-msg-in">
-      {/* Assistant avatar — flat, single accent color */}
+      {/* Assistant avatar — brand pinwheel mark on the accent tile */}
       <div
-        className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg text-sm font-semibold text-white"
+        className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg"
         style={{ background: "var(--color-accent-500)" }}
         aria-hidden
       >
-        H
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/avatar-mark.png" alt="" className="h-5 w-5" />
       </div>
 
       <div className="min-w-0 flex-1">
