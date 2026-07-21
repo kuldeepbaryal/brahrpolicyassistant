@@ -53,7 +53,7 @@ export default function AdminPage() {
           <p className="mt-2 text-sm" style={{ color: "var(--text-muted)" }}>
             {status === "unauthorized"
               ? "Sign in on the main page first, then come back here."
-              : "This dashboard is only available to HR administrators. If you believe you should have access, contact hr@brac.net."}
+              : "This dashboard is only available to HR administrators. If you believe you should have access, contact hrhelpdesk@brac.net."}
           </p>
           <Link
             href="/"

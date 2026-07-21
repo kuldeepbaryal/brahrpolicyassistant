@@ -12,11 +12,11 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const NO_RESULTS_MESSAGE =
-  "I couldn't find this in BRAC's HR policies. For help with this question, please contact **hr@brac.net**.";
+  "I couldn't find this in BRAC's HR policies. For help with this question, please contact **hrhelpdesk@brac.net**.";
 const QUOTA_MESSAGE =
   "We're seeing unusually high traffic right now and couldn't process your question. Please try again in a minute.";
 const ERROR_MESSAGE =
-  "Something went wrong while looking that up. Please try again — if it keeps happening, contact **hr@brac.net**.";
+  "Something went wrong while looking that up. Please try again — if it keeps happening, contact **hrhelpdesk@brac.net**.";
 
 function sse(event: string, data: unknown): string {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;

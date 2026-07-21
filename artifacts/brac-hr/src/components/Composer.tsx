@@ -69,8 +69,8 @@ export function Composer({ value, onValueChange, onSend, disabled }: ComposerPro
       </div>
       <p className="mx-auto mt-2 max-w-3xl text-center text-[11px]" style={{ color: "var(--text-faint)" }}>
         Answers come from BRAC HR documents and may not cover every case. For official guidance, contact{" "}
-        <a href="mailto:hr@brac.net" className="hover:underline" style={{ color: "var(--color-accent-600)" }}>
-          hr@brac.net
+        <a href="mailto:hrhelpdesk@brac.net" className="hover:underline" style={{ color: "var(--color-accent-600)" }}>
+          hrhelpdesk@brac.net
         </a>
         .
       </p>

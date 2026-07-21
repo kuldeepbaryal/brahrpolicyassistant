@@ -137,8 +137,8 @@ export function LoginScreen({
 
         <p className="mt-4 text-center text-[11px]" style={{ color: "var(--text-faint)" }}>
           For official HR guidance, contact{" "}
-          <a href="mailto:hr@brac.net" className="hover:underline" style={{ color: "var(--color-accent-600)" }}>
-            hr@brac.net
+          <a href="mailto:hrhelpdesk@brac.net" className="hover:underline" style={{ color: "var(--color-accent-600)" }}>
+            hrhelpdesk@brac.net
           </a>
         </p>
       </div>
