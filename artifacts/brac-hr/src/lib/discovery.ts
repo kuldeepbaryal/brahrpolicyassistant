@@ -30,6 +30,13 @@ const ANSWER_PREAMBLE =
   "(Banglish) for romanized Bangla questions, otherwise English. The policy documents are in English, so translate the " +
   "relevant policy content into the user's language; keep official terms, form names, and email addresses in English. " +
   "The RELATED follow-up questions must be in the same language and script as your answer. " +
+  "This is a multi-turn conversation: interpret follow-up questions in the context of earlier turns, resolving " +
+  "references like 'it', 'that leave', or 'what about for men?' to the topic already being discussed, and if the user " +
+  "switches language mid-conversation, switch with them. Do not repeat your previous answer; add only what is new. " +
+  "Quality bar: lead with the direct answer in the first sentence, then supporting detail. Quote exact figures, " +
+  "durations, and eligibility conditions from the documents rather than paraphrasing them vaguely. If a policy differs " +
+  "by staff category, country, or circumstance, say so explicitly. If the question is ambiguous, give the most likely " +
+  "answer and note the assumption in one line. " +
   "Format answers with Markdown (short paragraphs, bullet lists for steps or entitlements). " +
   "After your answer, on the very last line, output exactly: RELATED: followed by 3 short follow-up questions " +
   "an employee might ask next, separated by ' | '. If you could not find an answer, omit the RELATED line.";
