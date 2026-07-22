@@ -47,10 +47,10 @@ export const config = {
   get bedrockModelArn() {
     return (
       process.env.BEDROCK_MODEL_ARN ||
-      // Kimi K2.5 (Moonshot AI): user-selected model, verified accessible
-      // on-demand in ap-south-1. Requires custom generation + orchestration
-      // prompt templates (set in discovery.ts).
-      `arn:aws:bedrock:${this.awsRegion}::foundation-model/moonshotai.kimi-k2.5`
+      // Claude Opus 4.6 via the global cross-region inference profile (the
+      // only Opus 4.6 profile that routes from ap-south-1). Inference-profile
+      // ARNs are account-scoped, hence the account ID.
+      `arn:aws:bedrock:${this.awsRegion}:953934431385:inference-profile/global.anthropic.claude-opus-4-6-v1`
     );
   },
   /** DynamoDB table name prefix — tables are e.g. BracHRConversations. */
