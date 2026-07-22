@@ -152,7 +152,9 @@ export async function startChat(
         if (result.sessionName && result.sessionName !== engineSession) {
           await db.setEngineSession(user.sub, conversationId, result.sessionName);
         }
-        if (isFirstTurn && !result.noResults) {
+        // Only cache well-grounded answers: a citation-less answer is usually a
+        // session-memory reply and would pin "no policy cited" for the TTL.
+        if (isFirstTurn && !result.noResults && result.citations.length > 0) {
           await db.setCachedAnswer(qHash, { ...result, sessionName: null });
         }
       }
