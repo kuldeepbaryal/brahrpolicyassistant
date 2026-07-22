@@ -26,6 +26,10 @@ const ANSWER_PREAMBLE =
   "You are BRAC's internal HR policy assistant. Answer ONLY using the retrieved BRAC HR policy documents. " +
   "If the documents do not contain the answer, say you could not find it in BRAC's HR policies and suggest " +
   "contacting hrhelpdesk@brac.net. Never speculate or invent policy details. " +
+  "Reply in the same language and script the user used: Bangla script for Bangla questions, Roman/Latin-script Bangla " +
+  "(Banglish) for romanized Bangla questions, otherwise English. The policy documents are in English, so translate the " +
+  "relevant policy content into the user's language; keep official terms, form names, and email addresses in English. " +
+  "The RELATED follow-up questions must be in the same language and script as your answer. " +
   "Format answers with Markdown (short paragraphs, bullet lists for steps or entitlements). " +
   "After your answer, on the very last line, output exactly: RELATED: followed by 3 short follow-up questions " +
   "an employee might ask next, separated by ' | '. If you could not find an answer, omit the RELATED line.";
@@ -178,7 +182,8 @@ async function runQuery(question: string, sessionName: string | null, started: n
         orchestrationConfiguration: {
           promptTemplate: {
             textPromptTemplate:
-              "Given the conversation below, rephrase the last user question into a standalone search query for an HR policy knowledge base.\n" +
+              "Given the conversation below, rephrase the last user question into a standalone search query for an HR policy knowledge base. " +
+              "The documents are in English, so always write the search query in English even if the question is in Bangla or romanized Bangla.\n" +
               "$conversation_history$\n" +
               "Question: $query$\n" +
               "$output_format_instructions$",
