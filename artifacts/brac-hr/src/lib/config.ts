@@ -50,7 +50,7 @@ export const config = {
       // Claude Opus 4.6 via the global cross-region inference profile (the
       // only Opus 4.6 profile that routes from ap-south-1). Inference-profile
       // ARNs are account-scoped, hence the account ID.
-      `arn:aws:bedrock:${this.awsRegion}:953934431385:inference-profile/global.anthropic.claude-opus-4-6-v1`
+      `arn:aws:bedrock:${this.awsRegion}::foundation-model/moonshotai.kimi-k2.5`
     );
   },
   /** DynamoDB table name prefix — tables are e.g. BracHRConversations. */
