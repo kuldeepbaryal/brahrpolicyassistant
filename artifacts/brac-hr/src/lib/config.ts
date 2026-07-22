@@ -104,9 +104,11 @@ export const config = {
    * endpoint refuses to sign anything (default deny).
    */
   get citationDocBuckets(): string[] {
+    // Tolerate values pasted as "s3://bucket/", "bucket/", etc — only the
+    // bare bucket name matters for the allowlist comparison.
     return (process.env.CITATION_DOC_BUCKETS ?? "")
       .split(",")
-      .map((b) => b.trim())
+      .map((b) => b.trim().replace(/^s3:\/\//i, "").replace(/\/.*$/, "").trim())
       .filter(Boolean);
   },
 };
