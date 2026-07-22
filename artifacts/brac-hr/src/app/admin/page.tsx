@@ -102,7 +102,7 @@ export default function AdminPage() {
               <button
                 key={r}
                 onClick={() => setDays(r)}
-                className="rounded-md px-3 py-1 text-xs font-medium transition-colors"
+                className="pressable rounded-md px-3 py-1.5 text-xs font-medium"
                 style={days === r
                   ? { background: "var(--color-accent-500)", color: "#fff" }
                   : { color: "var(--text-muted)" }}
@@ -131,10 +131,10 @@ export default function AdminPage() {
             )}
             {/* Totals */}
             <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <Stat label="Questions asked" value={data.totals.questions} color="var(--color-accent-500)" />
-              <Stat label="No answer found" value={data.totals.noResults} color="var(--color-brand-amber)" />
-              <Stat label="👍 Helpful" value={data.totals.thumbsUp} color="var(--color-brand-sky)" />
-              <Stat label="👎 Not helpful" value={data.totals.thumbsDown} color="var(--color-brand-deepred)" />
+              <Stat index={0} label="Questions asked" value={data.totals.questions} color="var(--color-accent-500)" />
+              <Stat index={1} label="No answer found" value={data.totals.noResults} color="var(--color-brand-amber)" />
+              <Stat index={2} label="👍 Helpful" value={data.totals.thumbsUp} color="var(--color-brand-sky)" />
+              <Stat index={3} label="👎 Not helpful" value={data.totals.thumbsDown} color="var(--color-brand-deepred)" />
             </div>
 
             <Section title="Most-asked questions" empty={data.topQuestions.length === 0} emptyText="No questions in this period.">
@@ -350,7 +350,7 @@ function UsersSection({ onRoleChanged }: { onRoleChanged: () => void }) {
                 <button
                   onClick={() => toggleRole(u)}
                   disabled={busySub === u.sub}
-                  className="rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors hover:bg-[var(--code-bg)] disabled:opacity-50"
+                  className="pressable rounded-lg border px-2.5 py-1.5 text-xs font-medium hover:bg-[var(--code-bg)] disabled:opacity-50"
                   style={{ borderColor: "var(--border-strong)", color: "var(--text)" }}
                 >
                   {busySub === u.sub ? "Saving…" : u.role === "admin" ? "Make user" : "Make admin"}
@@ -383,11 +383,16 @@ function Shell({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Stat({ label, value, color }: { label: string; value: number; color?: string }) {
+function Stat({ label, value, color, index = 0 }: { label: string; value: number; color?: string; index?: number }) {
   return (
     <div
-      className="rounded-xl border p-4"
-      style={{ borderColor: "var(--border)", background: "var(--bg-elevated)", borderTop: `3px solid ${color ?? "var(--border)"}` }}
+      className="animate-stagger-in rounded-xl border p-4"
+      style={{
+        borderColor: "var(--border)",
+        background: "var(--bg-elevated)",
+        borderTop: `3px solid ${color ?? "var(--border)"}`,
+        ["--stagger-i" as string]: index,
+      }}
     >
       <p className="text-2xl font-semibold" style={{ fontFamily: "var(--font-display)", color: "var(--text)" }}>{value}</p>
       <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>{label}</p>
@@ -409,7 +414,7 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="mt-8 rounded-2xl border p-5" style={{ borderColor: "var(--border)", background: "var(--bg-elevated)" }}>
+    <section className="animate-rise-in mt-8 rounded-2xl border p-4 sm:p-5" style={{ borderColor: "var(--border)", background: "var(--bg-elevated)" }}>
       <h2 className="text-sm font-semibold" style={{ color: "var(--text)" }}>{title}</h2>
       {subtitle && <p className="mt-0.5 text-xs" style={{ color: "var(--text-faint)" }}>{subtitle}</p>}
       <div className="mt-3">

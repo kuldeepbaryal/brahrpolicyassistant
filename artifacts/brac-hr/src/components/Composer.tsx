@@ -29,7 +29,7 @@ export function Composer({ value, onValueChange, onSend, disabled }: ComposerPro
   const active = !!value.trim() && !disabled;
 
   return (
-    <div className="px-4 pb-5 pt-2 sm:px-6">
+    <div className="safe-bottom px-4 pt-2 sm:px-6">
       <div
         className="mx-auto flex max-w-3xl items-end gap-2 rounded-xl border p-2 transition-shadow focus-within:shadow-md"
         style={{
@@ -52,14 +52,14 @@ export function Composer({ value, onValueChange, onSend, disabled }: ComposerPro
           placeholder="Ask about BRAC HR policies..."
           disabled={disabled}
           aria-label="Ask an HR question"
-          className="max-h-[200px] flex-1 resize-none bg-transparent px-2.5 py-2 text-[0.95rem] leading-relaxed outline-none disabled:opacity-60"
+          className="max-h-[200px] flex-1 resize-none bg-transparent px-2.5 py-2 text-base leading-relaxed outline-none disabled:opacity-60 sm:text-[0.95rem]"
           style={{ color: "var(--text)" }}
         />
         <button
           onClick={submit}
           disabled={!active}
           aria-label="Send"
-          className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-white transition-all active:scale-[0.96] disabled:opacity-30"
+          className="pressable grid h-10 w-10 shrink-0 place-items-center rounded-lg text-white disabled:opacity-30 sm:h-9 sm:w-9"
           style={{
             background: active ? "var(--color-accent-500)" : "var(--border-strong)",
           }}

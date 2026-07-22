@@ -139,7 +139,9 @@ export function Message({ message, streaming, onFeedback, onRelatedClick }: Mess
           )}
 
           {!streaming && message.citations && (
-            <CitationChips citations={message.citations} open={openCitation} onOpenChange={setOpenCitation} />
+            <div className="animate-fade-in">
+              <CitationChips citations={message.citations} open={openCitation} onOpenChange={setOpenCitation} />
+            </div>
           )}
           {!streaming && message.citations && message.citations.length === 0 && !message.noResults && (
             <p className="mt-2.5 text-[11px] italic" style={{ color: "var(--text-faint)" }}>
@@ -149,7 +151,7 @@ export function Message({ message, streaming, onFeedback, onRelatedClick }: Mess
         </div>
 
         {!streaming && message.content && (
-          <div className="mt-1.5 flex items-center gap-1 pl-1">
+          <div className="mt-1.5 flex items-center gap-1 pl-1 animate-fade-in">
             <CopyButton text={plainAnswerText(message.content)} />
             <FeedbackButton
               active={message.feedback === "up"}
@@ -172,11 +174,12 @@ export function Message({ message, streaming, onFeedback, onRelatedClick }: Mess
               <button
                 key={i}
                 onClick={() => onRelatedClick?.(q)}
-                className="rounded-full border px-3 py-1 text-xs transition-colors hover:bg-[var(--color-accent-50)] hover:border-[var(--color-accent-300)]"
+                className="pressable animate-stagger-in rounded-full border px-3 py-1.5 text-xs hover:bg-[var(--color-accent-50)] hover:border-[var(--color-accent-300)]"
                 style={{
                   borderColor: "var(--border-strong)",
                   color: "var(--text-muted)",
                   background: "var(--bg-elevated)",
+                  ["--stagger-i" as string]: i,
                 }}
               >
                 {q}
@@ -201,7 +204,7 @@ function CopyButton({ text }: { text: string }) {
       onClick={() => navigator.clipboard.writeText(text).then(() => setCopied(true)).catch(() => {})}
       aria-label={copied ? "Copied" : "Copy answer"}
       title={copied ? "Copied" : "Copy answer"}
-      className="grid h-7 w-7 place-items-center rounded-lg transition-colors active:scale-[0.97]"
+      className="pressable grid h-8 w-8 place-items-center rounded-lg"
       style={{ color: copied ? "var(--color-accent-500)" : "var(--text-faint)" }}
     >
       {copied ? <IconCheck width={14} height={14} /> : <IconCopy width={14} height={14} />}
@@ -226,7 +229,7 @@ function FeedbackButton({
       aria-pressed={active}
       aria-label={label}
       title={label}
-      className="grid h-7 w-7 place-items-center rounded-lg transition-colors active:scale-[0.97]"
+      className="pressable grid h-8 w-8 place-items-center rounded-lg"
       style={{
         color: active ? "var(--color-accent-500)" : "var(--text-faint)",
         background: active ? "var(--color-accent-50)" : "transparent",

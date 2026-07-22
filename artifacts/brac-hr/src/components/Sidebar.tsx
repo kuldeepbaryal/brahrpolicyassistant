@@ -41,6 +41,30 @@ export function Sidebar({
   const editRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  // Mobile overlay animation: keep mounted while playing the exit animation.
+  const [rendered, setRendered] = useState(open);
+  const [closing, setClosing] = useState(false);
+  const touch = useRef<{ x: number; y: number } | null>(null);
+  useEffect(() => {
+    if (open) {
+      setRendered(true);
+      setClosing(false);
+      return;
+    }
+    if (!rendered) return;
+    // Parent closed us — play exit animation, unmount on animationend.
+    // Fallback timeout covers prefers-reduced-motion (animation: none →
+    // animationend never fires) so the overlay always unmounts.
+    setClosing(true);
+    const t = setTimeout(() => {
+      setRendered(false);
+      setClosing(false);
+    }, 350);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+  const requestClose = () => onClose();
+
   // Debounced server-side content search alongside instant title filtering.
   useEffect(() => {
     const q = query.trim();
@@ -103,7 +127,7 @@ export function Sidebar({
         <BracLogo size={24} />
         <button
           onClick={onNew}
-          className="grid h-8 w-8 place-items-center rounded-lg transition-colors hover:bg-[var(--color-accent-50)]"
+          className="pressable touch-target grid h-8 w-8 place-items-center rounded-lg hover:bg-[var(--color-accent-50)]"
           style={{ color: "var(--color-accent-500)" }}
           aria-label="New conversation"
           title="New conversation"
@@ -187,14 +211,14 @@ export function Sidebar({
                   >
                     {c.title}
                   </span>
-                  <div className="hidden gap-0.5 group-hover:flex">
+                  <div className="row-actions gap-0.5">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         setEditTitle(c.title);
                         setEditingId(c.id);
                       }}
-                      className="grid h-6 w-6 place-items-center rounded transition-colors hover:text-[var(--text)]"
+                      className="pressable grid h-7 w-7 place-items-center rounded transition-colors hover:text-[var(--text)]"
                       style={{ color: "var(--text-faint)" }}
                       aria-label="Rename"
                     >
@@ -202,7 +226,7 @@ export function Sidebar({
                     </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); onDelete(c.id); }}
-                      className="grid h-6 w-6 place-items-center rounded transition-colors hover:text-[var(--color-accent-500)]"
+                      className="pressable grid h-7 w-7 place-items-center rounded transition-colors hover:text-[var(--color-accent-500)]"
                       style={{ color: "var(--text-faint)" }}
                       aria-label="Delete"
                     >
@@ -217,7 +241,7 @@ export function Sidebar({
       </nav>
 
       {/* User footer */}
-      <div className="border-t p-3" style={{ borderColor: "var(--border)" }}>
+      <div className="safe-bottom border-t p-3" style={{ borderColor: "var(--border)" }}>
         <div className="flex items-center gap-2.5 rounded-lg px-2 py-1.5">
           {/* Avatar */}
           <div
@@ -289,13 +313,36 @@ export function Sidebar({
         {inner}
       </div>
 
-      {/* Mobile overlay — controlled by parent */}
-      {open && (
-        <div className="fixed inset-0 z-40 md:hidden" onClick={onClose}>
-          <div className="absolute inset-0" style={{ background: "rgba(28,23,21,0.3)" }} />
+      {/* Mobile overlay — controlled by parent, animated in/out */}
+      {rendered && (
+        <div className="fixed inset-0 z-40 md:hidden" onClick={requestClose}>
           <div
-            className="absolute inset-y-0 left-0 z-50"
+            className={`sidebar-backdrop absolute inset-0 ${closing ? "closing" : ""}`}
+            style={{ background: "rgba(28,23,21,0.35)" }}
+          />
+          <div
+            className={`sidebar-panel absolute inset-y-0 left-0 z-50 shadow-xl ${closing ? "closing" : ""}`}
             onClick={(e) => e.stopPropagation()}
+            onTouchStart={(e) => { touch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }}
+            onTouchMove={(e) => {
+              if (!touch.current) return;
+              const dx = touch.current.x - e.touches[0].clientX;
+              const dy = Math.abs(touch.current.y - e.touches[0].clientY);
+              // Axis lock: only close on a dominant horizontal left swipe.
+              if (dx > 60 && dx > dy * 1.5) {
+                touch.current = null;
+                requestClose();
+              } else if (dy > 40 && dy > dx) {
+                touch.current = null; // vertical scroll — abandon gesture
+              }
+            }}
+            onTouchEnd={() => { touch.current = null; }}
+            onAnimationEnd={(e) => {
+              if (closing && e.target === e.currentTarget) {
+                setRendered(false);
+                setClosing(false);
+              }
+            }}
           >
             {inner}
           </div>

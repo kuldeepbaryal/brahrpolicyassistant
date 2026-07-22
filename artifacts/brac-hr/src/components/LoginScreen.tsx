@@ -75,7 +75,7 @@ export function LoginScreen({
       className="flex min-h-dvh items-center justify-center px-6"
       style={{ background: "var(--bg)" }}
     >
-      <div className="w-full max-w-sm animate-fade-in">
+      <div className="w-full max-w-sm animate-rise-in">
         <div
           className="rounded-2xl border p-8 text-center sm:p-10"
           style={{

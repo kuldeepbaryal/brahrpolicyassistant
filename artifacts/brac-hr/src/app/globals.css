@@ -112,11 +112,98 @@ body {
   animation: typing-bounce 1.2s infinite;
 }
 
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.985); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-rise-in {
+  animation: rise-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Staggered entrance for lists of cards/chips — set --stagger-i per item */
+@keyframes stagger-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-stagger-in {
+  animation: stagger-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--stagger-i, 0) * 55ms);
+}
+
+/* Mobile sidebar: backdrop fade + panel slide */
+@keyframes backdrop-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes panel-in {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+.sidebar-backdrop {
+  animation: backdrop-in 0.25s ease both;
+}
+.sidebar-panel {
+  animation: panel-in 0.3s cubic-bezier(0.32, 0.72, 0, 1) both;
+  will-change: transform;
+}
+.sidebar-backdrop.closing {
+  animation: backdrop-in 0.2s ease reverse both;
+}
+.sidebar-panel.closing {
+  animation: panel-in 0.24s cubic-bezier(0.32, 0.72, 0, 1) reverse both;
+}
+
+/* Refined press feedback for tappable elements */
+.pressable {
+  transition: transform 0.12s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.pressable:active {
+  transform: scale(0.97);
+}
+
+/* iOS notch / home-bar safe areas */
+.safe-bottom {
+  padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+}
+.safe-top {
+  padding-top: max(0.625rem, env(safe-area-inset-top));
+}
+
+/* Conversation row actions: always visible on touch, hover-revealed on desktop */
+.row-actions {
+  display: flex;
+}
+@media (hover: hover) and (pointer: fine) {
+  .row-actions { display: none; }
+  .group:hover .row-actions,
+  .group:focus-within .row-actions { display: flex; }
+}
+
+/* Comfortable touch targets on coarse pointers (phones/tablets) */
+@media (pointer: coarse) {
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-msg-in,
   .animate-fade-in,
+  .animate-rise-in,
+  .animate-stagger-in,
+  .sidebar-backdrop,
+  .sidebar-panel,
   .typing-dot {
     animation: none !important;
+  }
+  .pressable,
+  .pressable:active {
+    transition: none;
+    transform: none;
+  }
+  * {
+    scroll-behavior: auto !important;
   }
 }
 

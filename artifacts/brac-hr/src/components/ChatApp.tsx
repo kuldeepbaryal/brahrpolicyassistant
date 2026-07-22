@@ -164,8 +164,8 @@ export function ChatApp({ user, onSignOut }: { user: PublicUser; onSignOut: () =
 
       <main className="flex min-w-0 flex-1 flex-col">
         {/* Mobile top bar */}
-        <div className="flex items-center gap-2 border-b px-3 py-2.5 md:hidden" style={{ borderColor: "var(--border)" }}>
-          <button className="grid h-9 w-9 place-items-center rounded-lg hover:bg-[var(--code-bg)]" onClick={() => setSidebarOpen(true)} aria-label="Open menu">
+        <div className="safe-top flex items-center gap-2 border-b px-3 py-2.5 md:hidden" style={{ borderColor: "var(--border)" }}>
+          <button className="pressable touch-target grid h-10 w-10 place-items-center rounded-lg hover:bg-[var(--code-bg)]" onClick={() => setSidebarOpen(true)} aria-label="Open menu">
             <IconMenu />
           </button>
           <span className="font-semibold" style={{ fontFamily: "var(--font-display)", color: "var(--text)" }}>
