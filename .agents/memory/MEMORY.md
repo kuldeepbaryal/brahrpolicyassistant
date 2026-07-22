@@ -2,4 +2,5 @@
 - [BRAC HR daily stats](brac-hr-daily-stats.md) — dashboard reads pre-aggregated DailyStats day partitions, not scans; table + IAM are provisioned manually in AWS; old history needs backfill.
 - [BRAC HR module seams](brac-hr-seams.md) — deep modules in src/lib with injected ports (storage slices, KnowledgeBasePort); routes are thin HTTP/SSE adapters; test via MemoryDb + mocks.
 - [BRAC HR Bedrock RAG quirks](brac-hr-bedrock-rag.md) — custom RAG prompt needs $output_format_instructions$ or citations vanish; Opus 4.6 via global inference profile; citation-doc bucket allowlist.
+- [Verify pushes actually landed](git-push-verification.md) — gitPush can claim success while origin stays behind; fetch and check origin/main tip before trusting a deploy.
 - [Amplify SSR runtime env & credential debugging](amplify-runtime-env.md) — console env vars are build-time only (bake into .env.production); SSR Lambda has no ambient AWS creds; compare sha256 hashes to catch pasted-key typos.
