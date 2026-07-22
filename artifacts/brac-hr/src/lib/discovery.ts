@@ -165,9 +165,13 @@ async function runQuery(question: string, sessionName: string | null, started: n
         modelArn: config.bedrockModelArn,
         generationConfiguration: {
           promptTemplate: {
+            // $output_format_instructions$ is required for Bedrock to attach
+            // citations: it instructs the model to emit the citation markup
+            // Bedrock parses into `citations[]`. Without it, answers come back
+            // with no retrievedReferences at all.
             textPromptTemplate:
               ANSWER_PREAMBLE +
-              "\n\nSearch results:\n$search_results$\n\nUser question: $query$",
+              "\n\n$output_format_instructions$\n\nSearch results:\n$search_results$\n\nUser question: $query$",
           },
         },
         // Required by models without a Bedrock-native RAG template (e.g. Kimi K2.5).
