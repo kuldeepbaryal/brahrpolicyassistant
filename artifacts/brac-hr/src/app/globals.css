@@ -153,6 +153,57 @@ body {
   animation: panel-in 0.24s cubic-bezier(0.32, 0.72, 0, 1) reverse both;
 }
 
+/* Popovers/menus: quick scale+fade from an origin corner */
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.95) translateY(4px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+.animate-scale-in {
+  animation: scale-in 0.18s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform-origin: var(--origin, bottom right);
+}
+
+/* Expandable detail panels (citation source card) */
+@keyframes expand-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.99); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-expand-in {
+  animation: expand-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform-origin: top left;
+}
+
+/* Skeleton shimmer for loading placeholders */
+@keyframes shimmer {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(100%); }
+}
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--code-bg);
+  border-radius: 8px;
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.7), transparent);
+  animation: shimmer 1.4s ease infinite;
+}
+
+/* Send-button pop when a message goes out */
+@keyframes send-pop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(0.88); }
+  70%  { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+.animate-send-pop {
+  animation: send-pop 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 /* Refined press feedback for tappable elements */
 .pressable {
   transition: transform 0.12s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
@@ -192,6 +243,10 @@ body {
   .animate-fade-in,
   .animate-rise-in,
   .animate-stagger-in,
+  .animate-scale-in,
+  .animate-expand-in,
+  .animate-send-pop,
+  .skeleton::after,
   .sidebar-backdrop,
   .sidebar-panel,
   .typing-dot {

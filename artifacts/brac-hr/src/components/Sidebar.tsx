@@ -169,8 +169,12 @@ export function Sidebar({
           </p>
         )}
         <ul className="flex flex-col gap-px">
-          {visible.map((c) => (
-            <li key={c.id}>
+          {visible.map((c, i) => (
+            <li
+              key={c.id}
+              className="animate-stagger-in"
+              style={{ ["--stagger-i" as string]: Math.min(i, 8) }}
+            >
               {editingId === c.id ? (
                 <div className="flex items-center gap-1 px-1 py-0.5">
                   <input
@@ -267,7 +271,7 @@ export function Sidebar({
               onClick={() => setMenuOpen((v) => !v)}
               aria-label="User menu"
               aria-expanded={menuOpen}
-              className="grid h-7 w-7 place-items-center rounded-lg transition-colors hover:bg-[var(--border)]"
+              className="pressable touch-target grid h-7 w-7 place-items-center rounded-lg hover:bg-[var(--border)]"
               style={{ color: menuOpen ? "var(--text)" : "var(--text-faint)" }}
             >
               <IconDotsThree width={16} height={16} />
@@ -275,7 +279,7 @@ export function Sidebar({
 
             {menuOpen && (
               <div
-                className="absolute bottom-full right-0 mb-1.5 w-36 overflow-hidden rounded-lg border py-1 shadow-md"
+                className="animate-scale-in absolute bottom-full right-0 mb-1.5 w-36 overflow-hidden rounded-lg border py-1 shadow-md"
                 style={{
                   background: "var(--bg-elevated)",
                   borderColor: "var(--border-strong)",

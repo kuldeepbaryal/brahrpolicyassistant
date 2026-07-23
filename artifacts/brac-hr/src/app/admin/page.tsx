@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { BracLogo } from "@/components/BracLogo";
 
@@ -114,7 +114,15 @@ export default function AdminPage() {
         </div>
 
         {status === "loading" && (
-          <p className="mt-10 text-sm" style={{ color: "var(--text-muted)" }}>Loading…</p>
+          <div className="mt-6" aria-busy="true" aria-label="Loading insights">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="skeleton h-[86px]" />
+              ))}
+            </div>
+            <div className="skeleton mt-8 h-48" />
+            <div className="skeleton mt-8 h-48" />
+          </div>
         )}
         {status === "error" && (
           <div className="mt-6 rounded-xl px-4 py-3 text-sm" role="alert" style={{ background: "#f8e9e9", color: "var(--color-brand-deepred)" }}>
@@ -239,9 +247,7 @@ function RoleChangeHistorySection({ version }: { version: number }) {
           {error}
         </div>
       )}
-      {changes === null && !error && (
-        <p className="text-sm" style={{ color: "var(--text-muted)" }}>Loading…</p>
-      )}
+      {changes === null && !error && <div className="skeleton h-20" aria-busy="true" />}
       {changes !== null && changes.length > 0 && (
         <ul className="flex flex-col">
           {changes.map((c, i) => (
@@ -320,9 +326,7 @@ function UsersSection({ onRoleChanged }: { onRoleChanged: () => void }) {
           {error}
         </div>
       )}
-      {users === null && !error && (
-        <p className="text-sm" style={{ color: "var(--text-muted)" }}>Loading…</p>
-      )}
+      {users === null && !error && <div className="skeleton h-20" aria-busy="true" />}
       {users !== null && users.length > 0 && (
         <ul className="flex flex-col">
           {users.map((u) => (
@@ -394,10 +398,39 @@ function Stat({ label, value, color, index = 0 }: { label: string; value: number
         ["--stagger-i" as string]: index,
       }}
     >
-      <p className="text-2xl font-semibold" style={{ fontFamily: "var(--font-display)", color: "var(--text)" }}>{value}</p>
+      <p className="text-2xl font-semibold tabular-nums" style={{ fontFamily: "var(--font-display)", color: "var(--text)" }}>
+        <CountUp value={value} />
+      </p>
       <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>{label}</p>
     </div>
   );
+}
+
+/** Animates a stat number counting up from 0; snaps instantly under reduced motion. */
+function CountUp({ value }: { value: number }) {
+  const [display, setDisplay] = useState(0);
+  const raf = useRef(0);
+  useEffect(() => {
+    if (
+      value === 0 ||
+      (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches)
+    ) {
+      setDisplay(value);
+      return;
+    }
+    const duration = 600;
+    let start = 0;
+    const tick = (now: number) => {
+      if (!start) start = now;
+      const t = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic
+      setDisplay(Math.round(eased * value));
+      if (t < 1) raf.current = requestAnimationFrame(tick);
+    };
+    raf.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf.current);
+  }, [value]);
+  return <>{display}</>;
 }
 
 function Section({

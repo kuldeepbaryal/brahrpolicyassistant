@@ -22,9 +22,22 @@ export function ChatApp({ user, onSignOut }: { user: PublicUser; onSignOut: () =
   const scrollRef = useRef<HTMLDivElement>(null);
   const streamingIdRef = useRef<string | null>(null);
 
-  const scrollToBottom = useCallback(() => {
+  const scrollPending = useRef(false);
+  const scrollToBottom = useCallback((opts?: { gentle?: boolean }) => {
+    if (scrollPending.current) return; // coalesce rapid stream deltas into one scroll per frame
+    scrollPending.current = true;
     requestAnimationFrame(() => {
-      scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+      scrollPending.current = false;
+      const el = scrollRef.current;
+      if (!el) return;
+      // Gentle mode (streaming): don't fight the user if they scrolled up to read.
+      if (opts?.gentle) {
+        const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+        if (distanceFromBottom > 140) return;
+        el.scrollTo({ top: el.scrollHeight, behavior: "auto" });
+        return;
+      }
+      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
     });
   }, []);
 
@@ -100,7 +113,7 @@ export function ChatApp({ user, onSignOut }: { user: PublicUser; onSignOut: () =
           const id = streamingIdRef.current;
           acc += t;
           setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, content: acc } : m)));
-          scrollToBottom();
+          scrollToBottom({ gentle: true });
         },
         onSources: ({ citations, relatedQuestions }) => {
           const id = streamingIdRef.current;
@@ -204,7 +217,7 @@ export function ChatApp({ user, onSignOut }: { user: PublicUser; onSignOut: () =
         {messages.length === 0 ? (
           <EmptyState onPick={send} />
         ) : (
-          <div ref={scrollRef} className="flex-1 overflow-y-auto">
+          <div ref={scrollRef} className="flex-1 overflow-y-auto overscroll-contain">
             <div className="mx-auto flex max-w-3xl flex-col gap-5 px-4 py-6 sm:px-6">
               {messages.map((m) => (
                 <Message

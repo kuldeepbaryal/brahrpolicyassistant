@@ -35,11 +35,12 @@ export function CitationChips({
             key={i}
             id={`cite-chip-${i}`}
             onClick={() => onOpenChange(open === i ? null : i)}
-            className="group inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors hover:border-[var(--color-accent-300)] hover:bg-[var(--color-accent-50)]"
+            className="group pressable animate-stagger-in inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs hover:border-[var(--color-accent-300)] hover:bg-[var(--color-accent-50)]"
             style={{
               background: open === i ? "var(--color-accent-50)" : "var(--bg)",
               borderColor: open === i ? "var(--color-accent-300)" : "var(--border-strong)",
               color: "var(--text-muted)",
+              ["--stagger-i" as string]: i,
             }}
             aria-expanded={open === i}
           >
@@ -57,7 +58,8 @@ export function CitationChips({
 
       {open !== null && citations[open] && (
         <div
-          className="mt-2 rounded-xl border p-3.5 text-sm animate-fade-in"
+          key={open}
+          className="mt-2 rounded-xl border p-3.5 text-sm animate-expand-in"
           style={{
             background: "var(--color-accent-50)",
             borderColor: "var(--color-accent-200)",

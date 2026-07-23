@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { IconSend } from "./icons";
 
 interface ComposerProps {
@@ -20,9 +20,11 @@ export function Composer({ value, onValueChange, onSend, disabled }: ComposerPro
     ta.style.height = `${Math.min(ta.scrollHeight, 200)}px`;
   }, [value]);
 
+  const [popKey, setPopKey] = useState(0);
   const submit = () => {
     const text = value.trim();
     if (!text || disabled) return;
+    setPopKey((k) => k + 1); // replay the send-pop animation
     onSend(text);
   };
 
@@ -56,10 +58,11 @@ export function Composer({ value, onValueChange, onSend, disabled }: ComposerPro
           style={{ color: "var(--text)" }}
         />
         <button
+          key={popKey}
           onClick={submit}
           disabled={!active}
           aria-label="Send"
-          className="pressable grid h-10 w-10 shrink-0 place-items-center rounded-lg text-white disabled:opacity-30 sm:h-9 sm:w-9"
+          className={`pressable grid h-10 w-10 shrink-0 place-items-center rounded-lg text-white disabled:opacity-30 sm:h-9 sm:w-9 ${popKey ? "animate-send-pop" : ""}`}
           style={{
             background: active ? "var(--color-accent-500)" : "var(--border-strong)",
           }}
